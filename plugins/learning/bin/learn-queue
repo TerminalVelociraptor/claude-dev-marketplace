@@ -1,0 +1,339 @@
+#!/usr/bin/env python3
+"""Compute the study queue from the global learning log.
+
+Reads the append-only JSONL log and derives, per concept: its spacing stage, whether it is
+due, its recent hit/miss record, and the difficulty adjustment the next exercise should make.
+
+Keeping this in a script rather than re-deriving it in conversation makes the scheduling
+reproducible and, more importantly, makes the tuning constants below a single thing to change
+when the log shows how the learner actually performs.
+"""
+
+import argparse
+import json
+import os
+import sys
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+# --- Tuning constants -------------------------------------------------------------------
+# PLACEHOLDERS, not findings. Mirrored in shared/learning-profile.md; change both together.
+
+# Successes required to retire a concept from active rotation.
+GRADUATION_SUCCESSES = 3
+
+# Days that must separate consecutive *counted* successes. A success sooner than the current
+# interval still records, but does not advance the stage: massed repetition does not earn
+# graduation. Index i is the gap required to advance from stage i+1 to i+2, and the last
+# entry doubles as the post-graduation maintenance interval.
+SPACING_DAYS = [1, 7, 30]
+
+# Target success rate for exercise difficulty. Retrieval benefit requires success; too-hard
+# damages both retention and self-efficacy.
+SUCCESS_TARGET = 0.85
+
+# Outcomes considered when judging difficulty. Short window so difficulty tracks current
+# ability rather than being anchored by history from months ago.
+RECENT_WINDOW = 5
+
+# Concepts to interleave within one session.
+INTERLEAVE_MIN, INTERLEAVE_MAX = 2, 4
+
+SUCCESS_TYPES = {"hit"}
+FAILURE_TYPES = {"miss"}
+# An escape is a soft failure: evidence the material was pitched too hard, but not a wrong
+# answer, so it informs difficulty without resetting graduation progress.
+SOFT_FAILURE_TYPES = {"escape"}
+QUEUEING_TYPES = {"to-cover", "edge-confirmed"}
+
+
+def log_path() -> Path:
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    return Path(base) / "learning-toolkit" / "learning-log.jsonl"
+
+
+def read_log(path: Path) -> list:
+    if not path.exists():
+        return []
+    entries = []
+    with path.open(encoding="utf-8") as fh:
+        for lineno, line in enumerate(fh, 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                # Report and skip rather than abort: one damaged line must not deny access
+                # to the rest of a log representing months of work.
+                print(f"learn-queue: skipping unparseable line {lineno}", file=sys.stderr)
+                continue
+            ts = entry.get("ts")
+            if ts:
+                try:
+                    entry["_dt"] = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                except ValueError:
+                    entry["_dt"] = None
+            entries.append(entry)
+    return entries
+
+
+def stage_and_due(events: list, now: datetime):
+    """Walk a concept's outcomes in time order and derive its spacing stage.
+
+    Returns (stage, last_counted_success_dt, graduated, reactivations).
+    """
+    stage = 0
+    last_counted = None
+    graduated = False
+    reactivations = 0
+
+    for ev in events:
+        dt = ev.get("_dt")
+        etype = ev.get("type")
+        if dt is None:
+            continue
+
+        if etype in SUCCESS_TYPES:
+            if stage == 0:
+                stage, last_counted = 1, dt
+            elif stage < GRADUATION_SUCCESSES:
+                required = timedelta(days=SPACING_DAYS[min(stage - 1, len(SPACING_DAYS) - 1)])
+                if last_counted is None or dt - last_counted >= required:
+                    stage += 1
+                    last_counted = dt
+                    if stage >= GRADUATION_SUCCESSES:
+                        graduated = True
+            else:
+                last_counted = dt  # maintenance success on a graduated concept
+
+        elif etype in FAILURE_TYPES:
+            # Self-healing: a failure anywhere returns the concept to active rotation.
+            # Retired is not deleted. Reset fully so the spacing must be re-earned.
+            if graduated:
+                reactivations += 1
+            stage, last_counted, graduated = 0, None, False
+
+    return stage, last_counted, graduated, reactivations
+
+
+def due_at(stage: int, last_counted, graduated: bool):
+    """When this concept next wants attention. None means 'due now'."""
+    if stage == 0 or last_counted is None:
+        return None
+    idx = min(stage - 1, len(SPACING_DAYS) - 1)
+    return last_counted + timedelta(days=SPACING_DAYS[idx])
+
+
+def difficulty(events: list) -> str:
+    """Next-exercise difficulty for a concept: easier | hold | harder."""
+    outcomes = [e for e in events if e.get("type") in SUCCESS_TYPES | FAILURE_TYPES]
+    recent = outcomes[-RECENT_WINDOW:]
+
+    # Hard rule from the profile: two misses running means the next one gets EASIER.
+    # Difficulty climbs only after success.
+    tail = [e["type"] for e in outcomes[-2:]]
+    if len(tail) == 2 and all(t in FAILURE_TYPES for t in tail):
+        return "easier"
+
+    if not recent:
+        return "hold"
+
+    hits = sum(1 for e in recent if e["type"] in SUCCESS_TYPES)
+    rate = hits / len(recent)
+
+    # Repeated escapes say the material is over-pitched even when answers eventually land.
+    escapes = sum(1 for e in events[-RECENT_WINDOW * 2:] if e.get("type") in SOFT_FAILURE_TYPES)
+    if escapes >= 2 and rate < 1.0:
+        return "easier"
+
+    if rate < SUCCESS_TARGET:
+        return "easier"
+    if rate >= SUCCESS_TARGET and recent[-1]["type"] in SUCCESS_TYPES:
+        return "harder"
+    return "hold"
+
+
+def build(entries: list, project=None) -> list:
+    if project:
+        entries = [e for e in entries if e.get("project") == project]
+
+    by_concept = defaultdict(list)
+    for e in entries:
+        if e.get("concept"):
+            by_concept[e["concept"]].append(e)
+
+    now = datetime.now(timezone.utc)
+    rows = []
+    for concept, events in by_concept.items():
+        events.sort(key=lambda e: e.get("_dt") or datetime.min.replace(tzinfo=timezone.utc))
+        stage, last_counted, graduated, reactivations = stage_and_due(events, now)
+        due = due_at(stage, last_counted, graduated)
+        is_due = due is None or due <= now
+        overdue_days = 0.0 if due is None else max(0.0, (now - due).total_seconds() / 86400)
+
+        outcomes = [e for e in events if e.get("type") in SUCCESS_TYPES | FAILURE_TYPES]
+        hits = sum(1 for e in outcomes if e["type"] in SUCCESS_TYPES)
+        misses = len(outcomes) - hits
+
+        last = events[-1]
+        rows.append({
+            "concept": concept,
+            "edge": last.get("edge", "none"),
+            "lang": last.get("lang", "none"),
+            "projects": sorted({e.get("project") for e in events if e.get("project")}),
+            "stage": stage,
+            "graduated": graduated,
+            "reactivations": reactivations,
+            "due": None if due is None else due.isoformat(timespec="seconds"),
+            "is_due": is_due,
+            "overdue_days": round(overdue_days, 1),
+            "hits": hits,
+            "misses": misses,
+            "escapes": sum(1 for e in events if e.get("type") in SOFT_FAILURE_TYPES),
+            "difficulty": difficulty(events),
+            "queued": any(e.get("type") in QUEUEING_TYPES for e in events),
+            "events": len(events),
+            "last_seen": (last.get("_dt").isoformat(timespec="seconds") if last.get("_dt") else None),
+        })
+
+    # Most overdue first, then never-practised, then everything else.
+    rows.sort(key=lambda r: (not r["is_due"], -r["overdue_days"], r["stage"], r["concept"]))
+    return rows
+
+
+def pick(rows: list, n: int) -> list:
+    """Select concepts to interleave in one session.
+
+    Interleaving is the point: mix distinct concepts within a session rather than blocking
+    on one. Prefers due-and-active concepts, and spreads across edges where possible so the
+    mixing is genuine rather than three variations of the same idea.
+    """
+    active = [r for r in rows if not r["graduated"]]
+    candidates = [r for r in active if r["is_due"]] or active
+
+    picked, used_edges = [], set()
+    for row in candidates:
+        if len(picked) >= n:
+            break
+        if row["edge"] not in used_edges:
+            picked.append(row)
+            used_edges.add(row["edge"])
+    for row in candidates:  # backfill if not enough distinct edges exist
+        if len(picked) >= n:
+            break
+        if row not in picked:
+            picked.append(row)
+    return picked
+
+
+def fmt_table(rows: list) -> str:
+    if not rows:
+        return "queue is empty — nothing logged yet"
+    head = f"{'concept':<32} {'edge':<11} {'lang':<7} {'stage':<6} {'h/m':<8} {'next':<12} {'difficulty'}"
+    out = [head, "-" * len(head)]
+    for r in rows:
+        if r["graduated"]:
+            stage = "grad"
+        else:
+            stage = f"{r['stage']}/{GRADUATION_SUCCESSES}"
+        if r["is_due"]:
+            nxt = "DUE" if not r["overdue_days"] else f"DUE +{r['overdue_days']:.0f}d"
+        else:
+            nxt = (r["due"] or "")[:10]
+        out.append(
+            f"{r['concept']:<32} {r['edge']:<11} {r['lang']:<7} {stage:<6} "
+            f"{str(r['hits']) + '/' + str(r['misses']):<8} {nxt:<12} {r['difficulty']}"
+        )
+    return "\n".join(out)
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(prog="learn-queue", description="Study queue from the learning log.")
+    p.add_argument("--json", action="store_true", help="machine-readable output")
+    p.add_argument("--due", action="store_true", help="only concepts due now")
+    p.add_argument("--active", action="store_true", help="exclude graduated concepts")
+    p.add_argument("--project", default=None, help="restrict to one project (default: global)")
+    p.add_argument("--edge", default=None, help="restrict to one growth edge")
+    p.add_argument("--concept", default=None, help="full history of one concept")
+    p.add_argument("--concepts", action="store_true", help="list known slugs, for reuse checking")
+    p.add_argument("--pick", type=int, metavar="N", help=f"select N concepts to interleave "
+                                                        f"({INTERLEAVE_MIN}-{INTERLEAVE_MAX})")
+    p.add_argument("--stats", action="store_true", help="summary across the whole log")
+    args = p.parse_args()
+
+    path = log_path()
+    entries = read_log(path)
+
+    if not entries:
+        print(f"no log yet at {path}", file=sys.stderr)
+        print("[]" if args.json else "queue is empty — nothing logged yet")
+        return
+
+    if args.concepts:
+        slugs = sorted({e["concept"] for e in entries if e.get("concept")})
+        print(json.dumps(slugs) if args.json else "\n".join(slugs))
+        return
+
+    if args.concept:
+        hist = [e for e in entries if e.get("concept") == args.concept]
+        if not hist:
+            print(f"no entries for {args.concept!r}", file=sys.stderr)
+            sys.exit(1)
+        if args.json:
+            print(json.dumps([{k: v for k, v in e.items() if k != "_dt"} for e in hist], indent=2))
+        else:
+            for e in hist:
+                bits = [e.get("ts", "?"), e.get("type", "?"), e.get("project", "?")]
+                if e.get("signal"):
+                    bits.append(f"signal={e['signal']}")
+                if e.get("note"):
+                    bits.append(f"— {e['note']}")
+                print("  ".join(bits))
+        return
+
+    rows = build(entries, project=args.project)
+
+    if args.stats:
+        total = len(rows)
+        grad = sum(1 for r in rows if r["graduated"])
+        due = sum(1 for r in rows if r["is_due"] and not r["graduated"])
+        outcomes = sum(r["hits"] + r["misses"] for r in rows)
+        hits = sum(r["hits"] for r in rows)
+        rate = (hits / outcomes) if outcomes else 0.0
+        stats = {
+            "concepts": total, "graduated": grad, "active": total - grad, "due_now": due,
+            "outcomes": outcomes, "success_rate": round(rate, 3),
+            "success_target": SUCCESS_TARGET,
+            "on_target": abs(rate - SUCCESS_TARGET) <= 0.10 if outcomes else None,
+            "escapes": sum(r["escapes"] for r in rows),
+            "reactivations": sum(r["reactivations"] for r in rows),
+        }
+        if args.json:
+            print(json.dumps(stats, indent=2))
+        else:
+            for k, v in stats.items():
+                print(f"{k:<16} {v}")
+            if outcomes and not stats["on_target"]:
+                direction = "too hard" if rate < SUCCESS_TARGET else "too easy"
+                print(f"\nsuccess rate is off target ({direction}) — consider retuning "
+                      f"SUCCESS_TARGET or exercise difficulty")
+        return
+
+    if args.edge:
+        rows = [r for r in rows if r["edge"] == args.edge]
+    if args.active:
+        rows = [r for r in rows if not r["graduated"]]
+    if args.due:
+        rows = [r for r in rows if r["is_due"] and not r["graduated"]]
+
+    if args.pick:
+        n = max(INTERLEAVE_MIN, min(args.pick, INTERLEAVE_MAX))
+        rows = pick(rows, n)
+
+    print(json.dumps(rows, indent=2) if args.json else fmt_table(rows))
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+"""Mark a learning session active, and manage toolkit config.
+
+The session marker is what gates the protocol re-injection hook: outside an active session
+the hook emits nothing, so it cannot affect ordinary work. Markers are keyed by Claude Code
+session id and cleaned up on `end`.
+"""
+
+import argparse
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+STALE_AFTER_SECONDS = 24 * 3600  # a session left open overnight is over, whatever it says
+
+DEFAULT_CONFIG = {
+    # Deterministic re-injection of the protocol's core rules on every prompt during a
+    # session. OFF by default -- turn it on if you observe the protocol decaying in long
+    # sessions (Claude answering its own prediction questions, or writing code in pair mode).
+    "reinject": False,
+}
+
+
+def config_dir() -> Path:
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    return Path(base) / "learning-toolkit"
+
+
+def sessions_dir() -> Path:
+    return config_dir() / "sessions"
+
+
+def config_path() -> Path:
+    return config_dir() / "config.json"
+
+
+def load_config() -> dict:
+    try:
+        cfg = json.loads(config_path().read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        cfg = {}
+    return {**DEFAULT_CONFIG, **cfg}
+
+
+def save_config(cfg: dict) -> None:
+    config_dir().mkdir(parents=True, exist_ok=True)
+    config_path().write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+
+
+def sweep_stale() -> int:
+    """Remove markers from sessions that ended without cleanup (crash, closed terminal)."""
+    d = sessions_dir()
+    if not d.exists():
+        return 0
+    removed = 0
+    now = time.time()
+    for marker in d.glob("*.active"):
+        try:
+            if now - marker.stat().st_mtime > STALE_AFTER_SECONDS:
+                marker.unlink()
+                removed += 1
+        except OSError:
+            pass
+    return removed
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(prog="learn-session", description="Learning session state and config.")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("start", help="mark a session active")
+    s.add_argument("session_id")
+    s.add_argument("--mode", default="unknown", help="guided | pair | drill")
+
+    e = sub.add_parser("end", help="end a session")
+    e.add_argument("session_id")
+
+    sub.add_parser("status", help="show active sessions and config")
+
+    c = sub.add_parser("config", help="get or set a config value")
+    c.add_argument("key", nargs="?")
+    c.add_argument("value", nargs="?", help="on|off|true|false")
+
+    args = p.parse_args()
+
+    if args.cmd == "start":
+        sweep_stale()
+        sessions_dir().mkdir(parents=True, exist_ok=True)
+        marker = sessions_dir() / f"{args.session_id}.active"
+        marker.write_text(json.dumps({"mode": args.mode, "started": time.time()}), encoding="utf-8")
+        cfg = load_config()
+        state = "on" if cfg.get("reinject") else "off"
+        print(f"session active (mode={args.mode}, protocol re-injection {state})")
+
+    elif args.cmd == "end":
+        marker = sessions_dir() / f"{args.session_id}.active"
+        if marker.exists():
+            marker.unlink()
+            print("session ended")
+        else:
+            print("no active session to end")
+
+    elif args.cmd == "status":
+        cfg = load_config()
+        active = sorted(sessions_dir().glob("*.active")) if sessions_dir().exists() else []
+
+        # Every file is created lazily on first use, so "missing" is normal, not an error.
+        # Say so explicitly rather than leaving the user hunting for files that do not exist.
+        print(f"config dir  {config_dir()}\n")
+        files = [
+            ("learning-log.jsonl", "learning log", "created on the first logged entry"),
+            ("config.json", "toolkit settings", "created by `learn-session config <key> <val>`"),
+            ("compilers.json", "bench compiler set", "created by `bench config --init`"),
+        ]
+        for name, what, how in files:
+            path = config_dir() / name
+            if path.exists():
+                print(f"  {name:<20} present   {what}")
+            else:
+                print(f"  {name:<20} missing   {what} -- {how}")
+
+        print(f"\nsettings    {json.dumps(cfg)}")
+        print(f"sessions    {len(active)} active")
+        for m in active:
+            print(f"  {m.stem}")
+
+    elif args.cmd == "config":
+        cfg = load_config()
+        if not args.key:
+            print(json.dumps(cfg, indent=2))
+            return
+        if args.value is None:
+            print(cfg.get(args.key))
+            return
+        if args.key not in DEFAULT_CONFIG:
+            print(f"learn-session: unknown config key {args.key!r}. "
+                  f"Known: {' '.join(DEFAULT_CONFIG)}", file=sys.stderr)
+            sys.exit(2)
+        val = args.value.strip().lower()
+        if val not in {"on", "off", "true", "false", "1", "0", "yes", "no"}:
+            print(f"learn-session: value must be on/off, got {args.value!r}", file=sys.stderr)
+            sys.exit(2)
+        cfg[args.key] = val in {"on", "true", "1", "yes"}
+        save_config(cfg)
+        print(f"{args.key} = {cfg[args.key]}")
+
+
+if __name__ == "__main__":
+    main()

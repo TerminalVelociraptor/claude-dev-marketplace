@@ -1,0 +1,23 @@
+{
+  "name": "dev-toolkits",
+  "owner": {
+    "name": "David Engel",
+    "email": "drengel88@gmail.com"
+  },
+  "description": "Personal Claude Code toolkits for specification work and deliberate technical practice.",
+  "plugins": [
+    {
+      "name": "spec-toolkit",
+      "source": "./plugins/spec-toolkit",
+      "description": "Tools for authoring and evaluating project design/architecture specs against a peer-established rubric."
+    },
+    {
+      "name": "learning",
+      "source": "./plugins/learning",
+      "displayName": "Learning Toolkit",
+      "description": "Turns Claude Code into an interactive coding teacher for deliberate practice on language internals and HPC/optimization. Three session modes over a shared teaching core, with a global spaced-repetition log and a measurement harness that refuses to assert unverified performance claims.",
+      "category": "learning",
+      "tags": ["learning", "teaching", "deliberate-practice", "hpc", "performance"]
+    }
+  ]
+}

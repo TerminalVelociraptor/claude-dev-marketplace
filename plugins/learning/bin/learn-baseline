@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""Track the pair-programming check-in baseline commit.
+
+The baseline is a commit SHA, which is project-specific, so it must not go in the shared
+global log. It lives in `.git/learning-baseline` instead: project-local, survives Claude Code
+restarts mid-session, and can never be accidentally committed or clutter `git status` — no
+.gitignore entry needed in any repo.
+
+Check-in windows chain: each check-in reviews commits since the last baseline, then HEAD
+becomes the new baseline.
+"""
+
+import argparse
+import subprocess
+import sys
+from pathlib import Path
+
+STATE_FILE = "learning-baseline"
+
+
+def run(args: list, **kw) -> str:
+    return subprocess.run(
+        args, check=True, capture_output=True, text=True, **kw
+    ).stdout.strip()
+
+
+def git_dir() -> Path:
+    """Resolve the real .git directory, handling worktrees and submodules."""
+    try:
+        return Path(run(["git", "rev-parse", "--absolute-git-dir"]))
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("learn-baseline: not inside a git repository", file=sys.stderr)
+        sys.exit(2)
+
+
+def state_path() -> Path:
+    return git_dir() / STATE_FILE
+
+
+def head() -> str:
+    try:
+        return run(["git", "rev-parse", "HEAD"])
+    except subprocess.CalledProcessError:
+        print("learn-baseline: repository has no commits yet — make one first", file=sys.stderr)
+        sys.exit(2)
+
+
+def read_baseline():
+    path = state_path()
+    if not path.exists():
+        return None
+    sha = path.read_text(encoding="utf-8").strip()
+    return sha or None
+
+
+def require_baseline() -> str:
+    sha = read_baseline()
+    if not sha:
+        print("learn-baseline: no baseline set — run 'learn-baseline set' at session start",
+              file=sys.stderr)
+        sys.exit(1)
+    # A rebase or reset can orphan the stored SHA; say so clearly rather than failing obscurely.
+    try:
+        run(["git", "cat-file", "-e", f"{sha}^{{commit}}"])
+    except subprocess.CalledProcessError:
+        print(f"learn-baseline: stored baseline {sha[:12]} is no longer reachable "
+              f"(rebased or reset?). Re-set it with 'learn-baseline set <sha>'.", file=sys.stderr)
+        sys.exit(1)
+    return sha
+
+
+def write_baseline(sha: str) -> None:
+    state_path().write_text(sha + "\n", encoding="utf-8")
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(prog="learn-baseline", description="Pair-programming check-in baseline.")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("set", help="set baseline (default: HEAD)")
+    s.add_argument("sha", nargs="?", default=None)
+    sub.add_parser("get", help="print the current baseline SHA")
+    sub.add_parser("range", help="print BASELINE..HEAD")
+    sub.add_parser("commits", help="list the commit SEQUENCE since baseline, oldest first")
+    sub.add_parser("diff", help="print the net diff since baseline")
+    sub.add_parser("advance", help="move the baseline to HEAD after a check-in")
+    sub.add_parser("clear", help="remove the baseline (ends the session)")
+
+    args = p.parse_args()
+
+    if args.cmd == "set":
+        sha = args.sha or head()
+        try:
+            sha = run(["git", "rev-parse", f"{sha}^{{commit}}"])
+        except subprocess.CalledProcessError:
+            print(f"learn-baseline: {args.sha!r} is not a valid commit", file=sys.stderr)
+            sys.exit(2)
+        write_baseline(sha)
+        print(f"baseline set to {sha[:12]}")
+
+    elif args.cmd == "get":
+        print(require_baseline())
+
+    elif args.cmd == "range":
+        print(f"{require_baseline()}..HEAD")
+
+    elif args.cmd == "commits":
+        base = require_baseline()
+        if base == head():
+            print("no commits since the last check-in")
+            return
+        # --reverse so the sequence reads oldest-first: the ORDER of the steps is the
+        # teaching signal, not just the net diff.
+        out = run(["git", "log", "--reverse", "--format=%h%x09%an%x09%ar%x09%s", f"{base}..HEAD"])
+        print(out or "no commits since the last check-in")
+
+    elif args.cmd == "diff":
+        base = require_baseline()
+        sys.exit(subprocess.run(["git", "diff", f"{base}..HEAD"]).returncode)
+
+    elif args.cmd == "advance":
+        require_baseline()
+        new = head()
+        write_baseline(new)
+        print(f"baseline advanced to {new[:12]}")
+
+    elif args.cmd == "clear":
+        path = state_path()
+        if path.exists():
+            path.unlink()
+            print("baseline cleared")
+        else:
+            print("no baseline to clear")
+
+
+if __name__ == "__main__":
+    main()

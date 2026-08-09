@@ -1,0 +1,997 @@
+#!/usr/bin/env python3
+"""Measurement harness for verifying performance claims.
+
+Exists to enforce one rule: never assert a measurable claim without measuring it. A single
+wall-clock timing is not evidence, and a benchmark that reports a winner inside its own noise
+is worse than no benchmark, because it launders a coin flip into a confident number that then
+gets drilled by spaced repetition.
+
+So: interleaved A/B execution to cancel thermal and frequency drift, and a bootstrap
+confidence interval on the difference of medians. When that interval contains zero, this tool
+reports "indistinguishable" and refuses to name a winner.
+
+Subcommands: doctor, run, compare, vec, perf, cachegrind
+"""
+
+import argparse
+import json
+import os
+import random
+import re
+import shlex
+import shutil
+import statistics
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+DEFAULT_WARMUP = 3
+DEFAULT_REPS = 15
+BOOTSTRAP_SAMPLES = 10000
+# Below this relative difference, a "win" is not worth acting on even if statistically
+# resolvable — it is inside the range that ordinary system noise moves day to day.
+MIN_MEANINGFUL_EFFECT = 0.02
+
+# GCC only enables the full vectoriser at -O3. At -O2 it uses the "very-cheap" cost model,
+# which declines most loops -- so -O2 as a default would make `bench vec` report "not
+# vectorized" for code that vectorises perfectly well, which is exactly the kind of false
+# lesson this tool exists to prevent.
+DEFAULT_VEC_FLAGS = "-O3 -march=native"
+
+# Default to clang: the Intel oneAPI compiler (icx/icpx) is LLVM-based, so clang is much the
+# closer proxy for what the learner actually ships. clang also emits structured optimization
+# records carrying a Function field, which removes the need to guess which function a remark
+# belongs to.
+DEFAULT_CC = {"c": "clang", "cxx": "clang++"}
+CXX_SUFFIXES = (".cpp", ".cc", ".cxx", ".C", ".c++")
+
+# Deciding vectorisation from a disassembly is subtler than "are there xmm registers".
+# Scalar float code uses xmm constantly (addsd, cvtsi2sd), compilers zero registers with
+# vxorps, and moves alone are not computation. Blacklisting scalar mnemonics is unreliable,
+# so this whitelists positive evidence of packed ARITHMETIC instead.
+
+# Zeroing idiom: xor of a register with itself. Packed mnemonic, scalar intent.
+ZEROING_IDIOM = re.compile(r"\b(vp?xor[a-z]*|pxor)\s+%([xyz]mm\d+),%\2,%\2\b", re.I)
+ZEROING_IDIOM_2OP = re.compile(r"\b(vp?xor[a-z]*|pxor)\s+%([xyz]mm\d+),%\2\b", re.I)
+
+# Packed floating-point arithmetic: ...ps / ...pd suffix on a computing mnemonic.
+PACKED_FP = re.compile(
+    r"\bv?(add|sub|mul|div|max|min|sqrt|rcp|rsqrt|cmp|blend|fmadd|fmsub|fnmadd|fnmsub|"
+    r"haddp|hsubp|dp|round|andn?|or|xor)[a-z]*p[sd]\b", re.I)
+
+# Packed integer arithmetic: the p-prefixed SSE/AVX integer family.
+PACKED_INT = re.compile(
+    r"\bv?p(add|sub|mull|mulh|mulu|mulld|madd|cmpe|cmpg|max|min|abs|avg|sad|sll|srl|sra|"
+    r"ackss|ackus|unpck|shuf|blend|and|or|xor)[a-z]*\b", re.I)
+
+# Wide registers. Scalar FP never uses ymm/zmm, so their presence is strong on its own.
+WIDE_REG = re.compile(r"%[yz]mm\d+", re.I)
+ANY_SIMD_REG = re.compile(r"%([xyz])mm\d+", re.I)
+
+# Compiler vectorisation remarks are authoritative -- the compiler knows what it did.
+REMARK_SUCCESS = re.compile(r"optimized:.*loop vectorized", re.I)
+REMARK_FAILURE = re.compile(r"(missed|note):.*(couldn't vectorize|not vectorized)", re.I)
+
+
+def have(tool: str) -> bool:
+    return resolve_tool(tool) is not None
+
+
+# Intel's compilers live outside PATH unless oneAPI's setvars.sh has been sourced. They run
+# perfectly well from an absolute path with no environment setup, so resolving them here
+# means `bench` works in any shell -- no setvars in .bashrc, no per-tmux-window cost.
+ONEAPI_SEARCH = [
+    "/opt/intel/oneapi/compiler/latest/bin",
+    "/opt/intel/oneapi/compiler/*/bin",
+    os.path.expanduser("~/intel/oneapi/compiler/latest/bin"),
+]
+_TOOL_CACHE = {}
+
+
+def resolve_tool(tool: str):
+    """Absolute path for a tool, searching PATH first, then known oneAPI locations."""
+    if tool in _TOOL_CACHE:
+        return _TOOL_CACHE[tool]
+    found = shutil.which(tool)
+    if not found and os.path.isabs(tool) and os.access(tool, os.X_OK):
+        found = tool
+    if not found and tool in ("icx", "icpx", "ifx"):
+        import glob
+        for pattern in ONEAPI_SEARCH:
+            for d in sorted(glob.glob(pattern), reverse=True):  # newest version first
+                cand = os.path.join(d, tool)
+                if os.access(cand, os.X_OK):
+                    found = cand
+                    break
+            if found:
+                break
+    _TOOL_CACHE[tool] = found
+    return found
+
+
+def sh(cmd: str, **kw):
+    return subprocess.run(cmd, shell=True, capture_output=True, text=True, **kw)
+
+
+# --- environment ---------------------------------------------------------------------------
+
+def perf_paranoid():
+    try:
+        return int(Path("/proc/sys/kernel/perf_event_paranoid").read_text().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def governor():
+    paths = sorted(Path("/sys/devices/system/cpu").glob("cpu*/cpufreq/scaling_governor"))
+    govs = set()
+    for p in paths:
+        try:
+            govs.add(p.read_text().strip())
+        except OSError:
+            pass
+    return sorted(govs)
+
+
+def env_warnings() -> list:
+    warns = []
+    govs = governor()
+    if govs and any(g not in ("performance",) for g in govs):
+        warns.append(f"cpu governor is {'/'.join(govs)}, not 'performance' — "
+                     f"frequency scaling adds run-to-run variance")
+    try:
+        if Path("/sys/devices/system/cpu/cpufreq/boost").read_text().strip() == "1":
+            warns.append("turbo/boost is on — sustained runs may clock down mid-benchmark")
+    except OSError:
+        pass
+    if os.cpu_count() and os.getloadavg()[0] > os.cpu_count() * 0.3:
+        warns.append(f"load average is {os.getloadavg()[0]:.1f} — other work will perturb timings")
+    return warns
+
+
+def cmd_doctor(args) -> None:
+    par = perf_paranoid()
+    rows = [
+        ("clang (default)", have("clang")), ("clang++", have("clang++")),
+        ("icx (Intel oneAPI)", have("icx")), ("icpx", have("icpx")),
+        ("gcc", have("gcc")), ("g++", have("g++")),
+        ("objdump", have("objdump")), ("java", have("java")), ("javac", have("javac")),
+        ("python3", have("python3")), ("taskset", have("taskset")),
+        ("perf", have("perf")), ("valgrind (cachegrind)", have("valgrind")),
+        ("hyperfine", have("hyperfine")),
+    ]
+    print("tool availability")
+    for name, ok in rows:
+        print(f"  {name:<24} {'yes' if ok else 'NO'}")
+
+    if not have("icx"):
+        print("\n  icx absent: `bench vec --both` uses clang as the proxy for it. clang is")
+        print("  LLVM-based like icx, but icx may default to a relaxed floating-point model,")
+        print("  which changes whether reductions vectorise. Verify before trusting the proxy.")
+
+    print(f"\nperf_event_paranoid       {par if par is not None else 'unavailable'}")
+    if par is None:
+        print("  perf_event subsystem not exposed — hardware counters unavailable")
+    elif par >= 3:
+        print("  BLOCKS all unprivileged perf use. Own-process counters need <= 2 (1 recommended):")
+        print("    sudo sysctl kernel.perf_event_paranoid=1")
+    elif par >= 1:
+        print("  own-process counters OK; system-wide uncore (memory bandwidth) needs 0")
+    else:
+        print("  full access including uncore counters")
+
+    pmus = sorted(p.name for p in Path("/sys/bus/event_source/devices").glob("*")) \
+        if Path("/sys/bus/event_source/devices").exists() else []
+    if pmus:
+        print(f"\nPMUs exposed              {' '.join(pmus)}")
+
+    warns = env_warnings()
+    if warns:
+        print("\nmeasurement environment warnings")
+        for w in warns:
+            print(f"  - {w}")
+
+    print("\nWithout perf/cachegrind you can still verify empirically:")
+    print("  - cache hierarchy   : working-set-size / stride sweeps (timing alone reveals L1/L2/L3)")
+    print("  - branch prediction : sorted vs unsorted input on the same code")
+    print("  - vectorisation     : 'bench vec' reads the actual disassembly (static, exact)")
+
+
+# --- timing --------------------------------------------------------------------------------
+
+def time_once(cmd: str, pin: int = None) -> float:
+    if pin is not None and have("taskset"):
+        cmd = f"taskset -c {pin} {cmd}"
+    t0 = time.perf_counter()
+    proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    elapsed = time.perf_counter() - t0
+    if proc.returncode != 0:
+        print(f"bench: command failed (exit {proc.returncode}): {cmd}", file=sys.stderr)
+        if proc.stderr.strip():
+            print(proc.stderr.strip()[:2000], file=sys.stderr)
+        sys.exit(2)
+    return elapsed
+
+
+def describe(samples: list) -> dict:
+    med = statistics.median(samples)
+    # MAD, not stdev: robust to the occasional interference spike that contaminates any
+    # benchmark run on a general-purpose OS.
+    mad = statistics.median([abs(x - med) for x in samples])
+    return {
+        "n": len(samples),
+        "min": min(samples),
+        "median": med,
+        "mad": mad,
+        "max": max(samples),
+        "rel_mad": (mad / med) if med else 0.0,
+    }
+
+
+def bootstrap_median_diff(a: list, b: list, samples: int = BOOTSTRAP_SAMPLES):
+    """95% CI on (median(b) - median(a)) / median(a), by resampling with replacement.
+
+    Nonparametric: benchmark timings are right-skewed and bounded below, so assuming
+    normality here would be simply wrong.
+    """
+    rng = random.Random(0xBE7C4)  # fixed seed: same data gives the same verdict
+    na, nb = len(a), len(b)
+    diffs = []
+    for _ in range(samples):
+        ra = statistics.median([a[rng.randrange(na)] for _ in range(na)])
+        rb = statistics.median([b[rng.randrange(nb)] for _ in range(nb)])
+        if ra:
+            diffs.append((rb - ra) / ra)
+    diffs.sort()
+    lo = diffs[int(0.025 * len(diffs))]
+    hi = diffs[int(0.975 * len(diffs)) - 1]
+    return lo, hi
+
+
+def warn_java(cmd: str) -> None:
+    if re.search(r"\bjava\b", cmd):
+        print("bench: WARNING — timing a `java` process externally measures JVM startup and\n"
+              "      JIT warmup, which usually dominate the code under test. For a real JVM\n"
+              "      microbenchmark use templates/BenchHarness.java, which warms up and\n"
+              "      measures inside the JVM.\n", file=sys.stderr)
+
+
+def cmd_run(args) -> None:
+    warn_java(args.cmd)
+    for w in env_warnings():
+        print(f"bench: note — {w}", file=sys.stderr)
+
+    for _ in range(args.warmup):
+        time_once(args.cmd, args.pin)
+    samples = [time_once(args.cmd, args.pin) for _ in range(args.reps)]
+    stats = describe(samples)
+
+    if args.json:
+        print(json.dumps({"cmd": args.cmd, **stats, "samples": samples}, indent=2))
+        return
+    print(f"cmd       {args.cmd}")
+    print(f"reps      {stats['n']} (after {args.warmup} warmup)")
+    print(f"min       {stats['min'] * 1e3:.3f} ms")
+    print(f"median    {stats['median'] * 1e3:.3f} ms")
+    print(f"MAD       {stats['mad'] * 1e3:.3f} ms  ({stats['rel_mad'] * 100:.1f}%)")
+    print(f"max       {stats['max'] * 1e3:.3f} ms")
+    if stats["rel_mad"] > 0.05:
+        print("\nnoise is high (MAD > 5% of median) — treat small differences as unresolved")
+
+
+def cmd_compare(args) -> None:
+    warn_java(args.a)
+    warn_java(args.b)
+    for w in env_warnings():
+        print(f"bench: note — {w}", file=sys.stderr)
+
+    for _ in range(args.warmup):
+        time_once(args.a, args.pin)
+        time_once(args.b, args.pin)
+
+    # Interleave A/B rather than running all of A then all of B. Thermal drift, frequency
+    # changes and background load all trend over time; interleaving makes them hit both
+    # variants equally instead of being mistaken for a difference between them.
+    sa, sb = [], []
+    for _ in range(args.reps):
+        sa.append(time_once(args.a, args.pin))
+        sb.append(time_once(args.b, args.pin))
+
+    da, db = describe(sa), describe(sb)
+    lo, hi = bootstrap_median_diff(sa, sb)
+    rel = (db["median"] - da["median"]) / da["median"] if da["median"] else 0.0
+
+    indistinguishable = lo <= 0.0 <= hi
+    trivial = abs(rel) < MIN_MEANINGFUL_EFFECT
+
+    if indistinguishable:
+        verdict = "indistinguishable — the 95% CI includes zero; no winner"
+        winner = None
+    elif trivial:
+        verdict = (f"B differs by {rel * 100:+.1f}%, resolvable but below the "
+                   f"{MIN_MEANINGFUL_EFFECT * 100:.0f}% threshold worth acting on")
+        winner = None
+    else:
+        winner = "A" if rel > 0 else "B"
+        verdict = f"{winner} is faster — B is {rel * 100:+.1f}% vs A (95% CI {lo * 100:+.1f}%..{hi * 100:+.1f}%)"
+
+    if args.json:
+        print(json.dumps({
+            "a": {"cmd": args.a, **da}, "b": {"cmd": args.b, **db},
+            "rel_diff": rel, "ci95": [lo, hi],
+            "indistinguishable": indistinguishable, "winner": winner, "verdict": verdict,
+        }, indent=2))
+        return
+
+    print(f"A  {args.a}")
+    print(f"   median {da['median'] * 1e3:.3f} ms   min {da['min'] * 1e3:.3f} ms   MAD {da['rel_mad'] * 100:.1f}%")
+    print(f"B  {args.b}")
+    print(f"   median {db['median'] * 1e3:.3f} ms   min {db['min'] * 1e3:.3f} ms   MAD {db['rel_mad'] * 100:.1f}%")
+    print(f"\n{args.reps} interleaved reps, bootstrap 95% CI on median difference")
+    print(f"VERDICT: {verdict}")
+
+
+# --- static verification -------------------------------------------------------------------
+
+def compiler_family(cc: str) -> str:
+    """Classify a compiler so we know which remark mechanism to use.
+
+    Intel's icx/icpx are LLVM-based and accept clang's optimization-record flags, so they are
+    handled as the clang family. Reported separately because their defaults differ -- notably
+    the floating-point model, which decides whether reductions vectorise at all.
+    """
+    exe = resolve_tool(cc) or cc
+    try:
+        out = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    low = out.lower()
+    if "intel" in low or "oneapi" in low:
+        return "intel"
+    if "clang" in low:
+        return "clang"
+    if "free software foundation" in low or re.search(r"\bg(cc|\+\+)\b", low):
+        return "gcc"
+    return "unknown"
+
+
+def clang_family(family: str) -> bool:
+    return family in ("clang", "intel")
+
+
+_DEMANGLE_CACHE = {}
+
+
+def demangle(symbol: str) -> str:
+    """Demangle a C++ symbol, returning it unchanged if that is not possible."""
+    if symbol in _DEMANGLE_CACHE:
+        return _DEMANGLE_CACHE[symbol]
+    out = symbol
+    if symbol.startswith("_Z") and have("c++filt"):
+        try:
+            r = subprocess.run(["c++filt", symbol], capture_output=True, text=True, timeout=5)
+            if r.returncode == 0 and r.stdout.strip():
+                out = r.stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            pass
+    _DEMANGLE_CACHE[symbol] = out
+    return out
+
+
+def symbol_matches(symbol: str, requested: str) -> bool:
+    """Does a linker/record symbol correspond to the function the user asked for?
+
+    C++ matters here: clang's optimization record and the disassembly both carry the MANGLED
+    name (`_Z1fPfPKfj`), so a plain equality test against `f` silently finds nothing and the
+    tool falls back to weaker evidence without saying why.
+    """
+    if symbol == requested:
+        return True
+    plain = demangle(symbol)
+    base = plain.split("(", 1)[0].strip()          # drop the parameter list
+    base = re.sub(r"^[\w\s:*&<>,~]*\b(operator\b.*)$", r"\1", base)
+    if base == requested or base.endswith("::" + requested):
+        return True
+    # Fall back to a loose containment test for C, where symbols are unmangled anyway.
+    return symbol == requested or (not symbol.startswith("_Z") and requested == symbol)
+
+
+def parse_clang_record(path: Path, func: str = None):
+    """Read clang's -fsave-optimization-record YAML.
+
+    Each entry carries an explicit `Function` field, so remarks are attributed exactly rather
+    than inferred from source line ranges. That removes the brace-counting heuristic the GCC
+    path still needs, and with it a whole class of misattribution bug.
+
+    Returns (verdict, remark_lines) where verdict is 'yes' | 'no' | 'silent'.
+    """
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return "silent", []
+
+    entries = []
+    try:
+        import yaml
+
+        class _Loader(yaml.SafeLoader):
+            pass
+
+        # clang tags documents !Passed / !Missed / !Analysis*, which SafeLoader rejects
+        # outright; capture the tag as the entry kind instead.
+        def _any_tag(loader, suffix, node):
+            d = loader.construct_mapping(node, deep=True)
+            d["_kind"] = suffix
+            return d
+
+        _Loader.add_multi_constructor("!", _any_tag)
+        entries = [d for d in yaml.load_all(text, Loader=_Loader) if isinstance(d, dict)]
+    except ImportError:
+        # Fallback so the tool stays dependency-free where PyYAML is absent.
+        for block in text.split("--- !")[1:]:
+            kind = block.split("\n", 1)[0].strip()
+            fn = re.search(r"^Function:\s*(\S+)", block, re.M)
+            ps = re.search(r"^Pass:\s*(\S+)", block, re.M)
+            nm = re.search(r"^Name:\s*(\S+)", block, re.M)
+            args = re.findall(r"String:\s*'?([^'\n]+)'?", block)
+            entries.append({
+                "_kind": kind,
+                "Function": fn.group(1) if fn else None,
+                "Pass": ps.group(1) if ps else None,
+                "Name": nm.group(1) if nm else None,
+                "Args": [{"String": a} for a in args],
+            })
+    except Exception:
+        return "silent", []
+
+    said_yes = said_no = False
+    lines = []
+    for e in entries:
+        if e.get("Pass") != "loop-vectorize":
+            continue  # ignore slp-vectorizer noise; the loop vectoriser is the subject
+        if func and not symbol_matches(str(e.get("Function") or ""), func):
+            continue
+        kind = str(e.get("_kind", ""))
+        msg = " ".join(
+            str(a.get("String", "")).strip()
+            for a in (e.get("Args") or []) if isinstance(a, dict) and a.get("String")
+        ).strip()
+        name = e.get("Name") or ""
+        loc = e.get("DebugLoc") or {}
+        where = f"{loc.get('File', '?')}:{loc.get('Line', '?')}" if isinstance(loc, dict) else "?"
+
+        if kind.startswith("Passed"):
+            said_yes = True
+        elif kind.startswith("Missed") or kind.startswith("Analysis"):
+            # MissedDetails is a bare "loop not vectorized" with no cause; the Analysis
+            # entry alongside it carries the actual reason, so keep both but prefer the
+            # reason when reporting.
+            said_no = True
+        if msg:
+            lines.append(f"{where}: [{name}] {msg}")
+
+    if said_yes:
+        return "yes", lines
+    if said_no:
+        return "no", lines
+    return "silent", lines
+
+
+def function_line_range(src: Path, func: str):
+    """Source line range [start, end] of a function definition, by brace balance.
+
+    Compiler remarks are emitted for the whole translation unit, so without this a remark
+    about one function is wrongly attributed to another -- which silently inverts the
+    verdict for the function actually being asked about.
+    """
+    try:
+        lines = src.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return None
+
+    pattern = re.compile(rf"\b{re.escape(func)}\s*\(")
+    for i, line in enumerate(lines):
+        if not pattern.search(line) or line.lstrip().startswith(("//", "*", "/*")):
+            continue
+        # A definition has a body; a call or prototype does not. Look ahead for '{'
+        # before any ';' to tell them apart.
+        depth, started, start = 0, False, i + 1
+        for j in range(i, len(lines)):
+            for ch in lines[j]:
+                if ch == "{":
+                    depth += 1
+                    started = True
+                elif ch == "}":
+                    depth -= 1
+            if started and depth == 0:
+                return (start, j + 1)
+            if not started and ";" in lines[j]:
+                break  # prototype or call, keep searching
+    return None
+
+
+def filter_remarks(remarks: str, src: Path, func: str) -> str:
+    """Keep only remark lines whose source line falls inside `func`."""
+    rng = function_line_range(src, func)
+    if not rng:
+        return remarks  # cannot attribute; better to show everything than to hide evidence
+    start, end = rng
+    kept = []
+    for line in remarks.splitlines():
+        m = re.match(r"^[^:]+:(\d+):\d+:", line)
+        if m and start <= int(m.group(1)) <= end:
+            kept.append(line)
+    return "\n".join(kept)
+
+
+def analyse_asm(asm: str):
+    """Look for positive evidence of packed arithmetic in a disassembly.
+
+    Returns (verdict, evidence_mnemonics, width) where verdict is one of
+    'yes' | 'wide-moves-only' | 'no'.
+    """
+    arithmetic, moves, widths = [], [], set()
+
+    for line in asm.splitlines():
+        if "\t" not in line and not re.search(r"^\s+[0-9a-f]+:", line):
+            continue
+        # Register zeroing wears a packed mnemonic but does no packed work.
+        if ZEROING_IDIOM.search(line) or ZEROING_IDIOM_2OP.search(line):
+            continue
+
+        m = ANY_SIMD_REG.search(line)
+        if not m:
+            continue
+
+        mnemonic_match = re.search(r":\s+([a-z][a-z0-9]*)", line)
+        mnemonic = mnemonic_match.group(1) if mnemonic_match else line.strip().split()[0]
+
+        is_packed_arith = bool(PACKED_FP.search(mnemonic) or PACKED_INT.search(mnemonic))
+        is_wide = bool(WIDE_REG.search(line))
+
+        if is_packed_arith:
+            arithmetic.append(mnemonic)
+            widths.add("512-bit (AVX-512)" if "zmm" in line.lower()
+                       else "256-bit (AVX/AVX2)" if "ymm" in line.lower()
+                       else "128-bit (SSE/AVX)")
+        elif is_wide:
+            # ymm/zmm traffic with no packed arithmetic: a wide copy, or setup.
+            moves.append(mnemonic)
+            widths.add("512-bit (AVX-512)" if "zmm" in line.lower() else "256-bit (AVX/AVX2)")
+
+    width = " + ".join(sorted(widths)) if widths else None
+    if arithmetic:
+        return "yes", sorted(set(arithmetic)), width
+    if moves:
+        return "wide-moves-only", sorted(set(moves)), width
+    return "no", [], None
+
+
+def analyse_config(src: Path, func, cc: str, flags: str):
+    """Compile one configuration and decide whether `func` vectorised.
+
+    Returns a dict, or raises RuntimeError with the compiler error on a failed build.
+    """
+    family = compiler_family(cc)
+
+    with tempfile.TemporaryDirectory() as td:
+        obj = Path(td) / "a.out"
+        record = Path(td) / "opt.yaml"
+
+        if clang_family(family):
+            # Structured record: machine-readable and function-attributed. The -Rpass flags
+            # add nothing here but keep stderr informative when a human runs the command.
+            extra = (f"-fsave-optimization-record "
+                     f"-foptimization-record-file={shlex.quote(str(record))}")
+        elif family == "gcc":
+            extra = "-fopt-info-vec-all"
+        else:
+            extra = ""  # unknown compiler: fall back to disassembly evidence alone
+
+        exe = resolve_tool(cc) or cc
+        cmd = (f"{shlex.quote(exe)} {flags} {extra} -c {shlex.quote(str(src))} "
+               f"-o {shlex.quote(str(obj))}")
+        proc = sh(cmd)
+        if proc.returncode != 0:
+            raise RuntimeError(proc.stderr.strip() or "compilation failed")
+
+        if clang_family(family):
+            remark_verdict, remark_lines = parse_clang_record(record, func)
+        elif family == "gcc":
+            text = filter_remarks(proc.stderr, src, func) if func else proc.stderr
+            remark_lines = [l.strip() for l in text.splitlines() if "vectoriz" in l.lower()]
+            said_yes = any(REMARK_SUCCESS.search(l) for l in remark_lines)
+            said_no = any(REMARK_FAILURE.search(l) for l in remark_lines)
+            remark_verdict = "yes" if said_yes else ("no" if said_no else "silent")
+        else:
+            remark_verdict, remark_lines = "silent", []
+
+        asm = sh(f"objdump -d --no-show-raw-insn {shlex.quote(str(obj))}").stdout
+
+    if func:
+        full_asm = asm
+        asm = extract_function(asm, func)
+        if asm is None:
+            # Common in C++: small members and templates are inlined into their caller and
+            # never emitted standalone. Listing what IS present turns a dead end into the
+            # next step -- usually "analyse the caller instead".
+            syms = [demangle(s) for s in re.findall(r"^[0-9a-f]+ <([^>]+)>:", full_asm, re.M)]
+            listing = "\n    ".join(syms[:12]) if syms else "(none)"
+            raise RuntimeError(
+                f"no function matching {func!r} in the disassembly.\n"
+                f"  In C++ this usually means it was inlined into its caller.\n"
+                f"  Functions actually emitted:\n    {listing}")
+
+    asm_verdict, evidence, width = analyse_asm(asm)
+    verdict, confidence = combine_verdicts(remark_verdict, asm_verdict)
+
+    return {
+        "cc": cc, "family": family, "flags": flags, "verdict": verdict,
+        "confidence": confidence, "width": width, "evidence": evidence,
+        "remarks": remark_lines, "asm": asm,
+    }
+
+
+def combine_verdicts(remark_verdict: str, asm_verdict: str):
+    """Reconcile what the compiler said with what the binary contains.
+
+    The compiler's own account is authoritative; the disassembly corroborates. Where they
+    disagree, say so rather than picking one -- a confidently wrong vectorisation claim is
+    exactly what this tool exists to prevent.
+    """
+    if remark_verdict == "yes":
+        return "VECTORIZED", "compiler confirms"
+    if remark_verdict == "no" and asm_verdict != "yes":
+        return "NOT vectorized", "compiler confirms"
+    if remark_verdict == "no" and asm_verdict == "yes":
+        return "UNCLEAR", ("compiler says this loop did NOT vectorize, but packed arithmetic "
+                           "is present - likely another loop or an inlined callee. Use --show-asm")
+    if asm_verdict == "yes":
+        return "VECTORIZED", "from disassembly (no compiler remark)"
+    if asm_verdict == "wide-moves-only":
+        return "UNCLEAR", "wide data movement but no packed arithmetic - possibly a vectorised copy"
+    return "NOT vectorized", "no packed arithmetic in the disassembly"
+
+
+def extract_function(asm: str, func: str):
+    """Narrow a disassembly to one function, so SIMD elsewhere is not misattributed."""
+    blocks, cur, keep = [], [], False
+    for line in asm.splitlines():
+        m = re.match(r"^[0-9a-f]+ <(?P<sym>[^>]+)>:", line)
+        if m:
+            if keep:
+                blocks.append("\n".join(cur))
+            keep = symbol_matches(m.group("sym"), func)
+            cur = [line]
+        elif keep:
+            cur.append(line)
+    if keep:
+        blocks.append("\n".join(cur))
+    return "\n".join(blocks) if blocks else None
+
+
+def default_cc_for(src: Path) -> str:
+    return DEFAULT_CC["cxx"] if src.suffix in CXX_SUFFIXES else DEFAULT_CC["c"]
+
+
+def cmd_vec(args) -> None:
+    """Decide vectorisation from the compiler's own record plus the disassembly."""
+    src = Path(args.src)
+    if not src.exists():
+        print(f"bench: no such file {src}", file=sys.stderr)
+        sys.exit(2)
+
+    if args.both:
+        return vec_both(args, src)
+
+    cc = args.cc or configured_default(src) or default_cc_for(src)
+    if not have(cc):
+        print(f"bench: {cc} not installed", file=sys.stderr)
+        sys.exit(2)
+    flags = args.flags or DEFAULT_VEC_FLAGS
+
+    try:
+        r = analyse_config(src, args.func, cc, flags)
+    except RuntimeError as exc:
+        print(f"bench: {exc}", file=sys.stderr)
+        sys.exit(2)
+
+    print(f"source     {src}")
+    print(f"compiler   {cc} ({r['family']}) {flags}")
+    if args.func:
+        print(f"function   {args.func}")
+    print(f"VERDICT    {r['verdict']}  ({r['confidence']})")
+    if r["width"]:
+        print(f"width      {r['width']}")
+    if r["evidence"]:
+        print(f"evidence   {', '.join(r['evidence'][:6])}")
+    if r["remarks"]:
+        print("\ncompiler remarks")
+        for line in r["remarks"][:args.max_remarks]:
+            print(f"  {line}")
+        if len(r["remarks"]) > args.max_remarks:
+            print(f"  ... {len(r['remarks']) - args.max_remarks} more")
+    if args.show_asm:
+        print("\ndisassembly")
+        print(r["asm"])
+
+
+def compilers_config_path() -> Path:
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    return Path(base) / "learning-toolkit" / "compilers.json"
+
+
+DEFAULT_COMPILERS = {
+    "_comment": [
+        "Configurations compared by `bench vec --both`.",
+        "icx/icpx are found automatically under /opt/intel/oneapi even when setvars.sh has",
+        "NOT been sourced, so no shell setup is needed. Give an absolute path to override.",
+        "Entries whose compiler is missing are skipped with a note, so one file works",
+        "on any machine.",
+    ],
+    "default": "clang",
+    "configurations": [
+        {"name": "icx", "cc": "icx", "cxx": "icpx", "flags": "-O3 -march=native"},
+        {"name": "clang", "cc": "clang", "cxx": "clang++", "flags": "-O3 -march=native"},
+        {"name": "gcc", "cc": "gcc", "cxx": "g++", "flags": "-O3 -march=native"},
+    ],
+}
+
+
+def configured_default(src: Path):
+    """Single-compiler default, overridable via the `default` key in compilers.json.
+
+    Set it to "icx" to make plain `bench vec` use the work compiler.
+    """
+    path = compilers_config_path()
+    try:
+        cfg = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    name = cfg.get("default")
+    if not name:
+        return None
+    want_cxx = src.suffix in CXX_SUFFIXES
+    for c in cfg.get("configurations", []):
+        if name in (c.get("name"), c.get("cc")):
+            return c.get("cxx" if want_cxx else "cc")
+    return {"clang": DEFAULT_CC["cxx" if want_cxx else "c"]}.get(name, name)
+
+
+def load_compilers() -> list:
+    path = compilers_config_path()
+    if not path.exists():
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(DEFAULT_COMPILERS, indent=2) + "\n", encoding="utf-8")
+            print(f"bench: wrote default compiler set to {path}", file=sys.stderr)
+        except OSError:
+            return DEFAULT_COMPILERS["configurations"]
+        return DEFAULT_COMPILERS["configurations"]
+    try:
+        return json.loads(path.read_text(encoding="utf-8")).get(
+            "configurations", DEFAULT_COMPILERS["configurations"])
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"bench: could not read {path} ({exc}); using defaults", file=sys.stderr)
+        return DEFAULT_COMPILERS["configurations"]
+
+
+def cmd_config(args) -> None:
+    """Show or create the compiler configuration.
+
+    Exists because the config was previously written only as a side effect of the first
+    `--both` run, which meant there was nothing to edit until you had already used the
+    feature you wanted to configure.
+    """
+    path = compilers_config_path()
+
+    if args.init and not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(DEFAULT_COMPILERS, indent=2) + "\n", encoding="utf-8")
+        print(f"created {path}")
+    elif args.init:
+        print(f"already exists: {path}  (delete it to regenerate defaults)")
+
+    print(f"\ncompilers.json  {path}  [{'present' if path.exists() else 'MISSING'}]")
+    configs = load_compilers() if path.exists() else DEFAULT_COMPILERS["configurations"]
+    default = None
+    if path.exists():
+        try:
+            default = json.loads(path.read_text(encoding="utf-8")).get("default")
+        except (OSError, json.JSONDecodeError):
+            pass
+    print(f"default         {default or '(unset -> ' + DEFAULT_CC['c'] + ')'}")
+    print("\nconfigurations")
+    for c in configs:
+        cc = c.get("cc", "?")
+        exe = resolve_tool(cc)
+        status = exe if exe else "NOT FOUND"
+        print(f"  {c.get('name', cc):<16} {cc:<8} {c.get('flags', ''):<26} {status}")
+    if not path.exists():
+        print(f"\n(showing built-in defaults; run `bench config --init` to write them out)")
+
+
+def vec_both(args, src: Path) -> None:
+    """Compare vectorisation across compiler configurations.
+
+    The point is not redundancy. "Does this vectorize?" has no compiler-independent answer,
+    and a divergence is the most valuable thing this tool can surface: it marks a claim that
+    must never be logged as a universal fact, and it is where the mechanism actually lives.
+    """
+    configs = load_compilers()
+    results, skipped = [], []
+
+    for cfg in configs:
+        cc = cfg.get("cxx" if src.suffix in CXX_SUFFIXES else "cc")
+        if not cc or not have(cc):
+            skipped.append(f"{cfg.get('name', cc)} ({cc} not installed)")
+            continue
+        flags = args.flags or cfg.get("flags") or DEFAULT_VEC_FLAGS
+        try:
+            r = analyse_config(src, args.func, cc, flags)
+            r["name"] = cfg.get("name", cc)
+            results.append(r)
+        except RuntimeError as exc:
+            skipped.append(f"{cfg.get('name', cc)} (build failed: {str(exc).splitlines()[0][:70]})")
+
+    if not results:
+        print("bench: no configuration could be built", file=sys.stderr)
+        for s in skipped:
+            print(f"  skipped {s}", file=sys.stderr)
+        sys.exit(2)
+
+    verdicts = {r["verdict"] for r in results}
+    widths = {r["width"] for r in results if r["verdict"] == "VECTORIZED"}
+    diverges = len(verdicts) > 1
+    width_only = not diverges and len(widths) > 1
+
+    if args.json:
+        print(json.dumps({
+            "source": str(src), "function": args.func, "diverges": diverges,
+            "width_differs": width_only, "skipped": skipped,
+            "results": [{k: v for k, v in r.items() if k != "asm"} for r in results],
+        }, indent=2))
+        return
+
+    name_w = max([len(r["name"]) for r in results] + [len("configuration")])
+    print(f"source     {src}" + (f"   function {args.func}" if args.func else ""))
+    print()
+    print(f"{'configuration':<{name_w}}  {'verdict':<15} width")
+    print("-" * (name_w + 40))
+    for r in results:
+        print(f"{r['name']:<{name_w}}  {r['verdict']:<15} {r['width'] or '-'}")
+    for s in skipped:
+        print(f"{'(skipped)':<{name_w}}  {s}")
+
+    print()
+    if diverges:
+        print("DIVERGES -- vectorisation here is a property of the compiler, not the code.")
+        print("Do not record this as a universal fact; name the compiler and flags.")
+        for r in results:
+            reason = next((l for l in r["remarks"] if "not vectorized" in l.lower()), None)
+            if r["verdict"] != "VECTORIZED" and reason:
+                print(f"\n  why {r['name']} declined:\n    {reason}")
+    elif width_only:
+        print("Same verdict everywhere, but vector widths differ (main loop vs remainder "
+              "handling). Usually a codegen detail rather than a lesson.")
+    else:
+        print("All configurations agree.")
+
+
+def cmd_perf(args) -> None:
+    if not have("perf"):
+        print("bench: perf not installed (sudo apt install linux-perf).\n"
+              "       Cache and branch behaviour can still be shown empirically with a\n"
+              "       working-set-size sweep or a sorted-vs-unsorted comparison.", file=sys.stderr)
+        sys.exit(3)
+    par = perf_paranoid()
+    if par is not None and par >= 3:
+        print(f"bench: perf_event_paranoid={par} blocks unprivileged counters.\n"
+              f"       sudo sysctl kernel.perf_event_paranoid=1", file=sys.stderr)
+        sys.exit(3)
+
+    events = args.events or ("cycles,instructions,cache-references,cache-misses,"
+                             "branches,branch-misses,L1-dcache-loads,L1-dcache-load-misses")
+    cmd = f"perf stat -r {args.reps} -e {events} -- {args.cmd}"
+    if args.pin is not None and have("taskset"):
+        cmd = f"taskset -c {args.pin} {cmd}"
+    proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    print(proc.stderr)  # perf stat writes its report to stderr
+    if proc.returncode != 0:
+        sys.exit(proc.returncode)
+
+
+def cmd_cachegrind(args) -> None:
+    """Deterministic cache simulation — no PMU needed, and repeatable run to run.
+
+    For teaching this is often better than real counters: the numbers do not wobble, so a
+    prediction can be checked against an exact figure.
+    """
+    if not have("valgrind"):
+        print("bench: valgrind not installed (sudo apt install valgrind)", file=sys.stderr)
+        sys.exit(3)
+    cmd = f"valgrind --tool=cachegrind --cache-sim=yes --branch-sim=yes {args.cmd}"
+    proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    print(proc.stderr)
+    if proc.returncode != 0:
+        sys.exit(proc.returncode)
+
+
+# Options whose value routinely starts with '-' (compiler flags, perf events, commands).
+# argparse would treat such a value as another option and fail, so these are rewritten to
+# the `--opt=value` form before parsing. Without this, the single most obvious invocation --
+# `bench vec --flags "-O0"` -- is a usage error.
+DASH_VALUE_OPTS = {"--flags", "--events", "--cmd", "--a", "--b", "--cc", "--func"}
+
+
+def normalize_argv(argv: list) -> list:
+    out, i = [], 0
+    while i < len(argv):
+        tok = argv[i]
+        if tok in DASH_VALUE_OPTS and i + 1 < len(argv) and argv[i + 1].startswith("-"):
+            out.append(f"{tok}={argv[i + 1]}")
+            i += 2
+        else:
+            out.append(tok)
+            i += 1
+    return out
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(prog="bench", description=__doc__.split("\n")[0])
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    sub.add_parser("doctor", help="report toolchain and measurement environment").set_defaults(fn=cmd_doctor)
+
+    cfg = sub.add_parser("config", help="show or create the compiler configuration")
+    cfg.add_argument("--init", action="store_true", help="write the default config file")
+    cfg.set_defaults(fn=cmd_config)
+
+    def timing_args(sp):
+        sp.add_argument("--warmup", type=int, default=DEFAULT_WARMUP)
+        sp.add_argument("--reps", type=int, default=DEFAULT_REPS)
+        sp.add_argument("--pin", type=int, default=None, help="pin to a CPU core via taskset")
+        sp.add_argument("--json", action="store_true")
+
+    r = sub.add_parser("run", help="time one command with warmup and robust statistics")
+    r.add_argument("--cmd", required=True)
+    timing_args(r)
+    r.set_defaults(fn=cmd_run)
+
+    c = sub.add_parser("compare", help="interleaved A/B with a bootstrap CI and an honest verdict")
+    c.add_argument("--a", required=True)
+    c.add_argument("--b", required=True)
+    timing_args(c)
+    c.set_defaults(fn=cmd_compare)
+
+    v = sub.add_parser("vec", help="decide vectorisation from the compiler record + disassembly")
+    v.add_argument("--src", required=True)
+    v.add_argument("--func", default=None, help="restrict to one function")
+    v.add_argument("--cc", default=None, help=f"default: {DEFAULT_CC['c']}/{DEFAULT_CC['cxx']}")
+    v.add_argument("--flags", default=None, help=f"default: {DEFAULT_VEC_FLAGS}")
+    v.add_argument("--both", action="store_true",
+                   help="compare across the configurations in ~/.config/learning-toolkit/compilers.json")
+    v.add_argument("--json", action="store_true")
+    v.add_argument("--show-asm", action="store_true")
+    v.add_argument("--max-remarks", type=int, default=15)
+    v.set_defaults(fn=cmd_vec)
+
+    pf = sub.add_parser("perf", help="hardware counters via perf stat")
+    pf.add_argument("--cmd", required=True)
+    pf.add_argument("--events", default=None)
+    pf.add_argument("--reps", type=int, default=5)
+    pf.add_argument("--pin", type=int, default=None)
+    pf.set_defaults(fn=cmd_perf)
+
+    cg = sub.add_parser("cachegrind", help="deterministic cache/branch simulation")
+    cg.add_argument("--cmd", required=True)
+    cg.set_defaults(fn=cmd_cachegrind)
+
+    args = p.parse_args(normalize_argv(sys.argv[1:]))
+    args.fn(args)
+
+
+if __name__ == "__main__":
+    main()
