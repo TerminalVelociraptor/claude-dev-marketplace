@@ -1,9 +1,9 @@
 # learning
 
 Turns Claude Code into an interactive coding teacher for deliberate practice on **language
-internals** and **HPC/optimization**, across C, C++, Python and Java.
+internals** and **HPC/optimization**, across the languages and growth edges in your profile.
 
-Four skills over a shared teaching core, a global spaced-repetition log, and a measurement
+Session skills over a shared teaching core, a generated personal profile, a global spaced-repetition log, and a measurement
 harness that refuses to state a performance claim it has not measured.
 
 ## Skills
@@ -22,19 +22,59 @@ space — from being auto-selected wrongly. It also costs zero skill-listing con
 `flag` is the only one Claude triggers on its own, so a concept you hit during ordinary work still
 reaches the queue.
 
+## Your profile
+
+The teaching modes calibrate against a **personal profile** — who you are, the breadth to assume,
+your **growth edges (each with its own level: novice / proficient / expert)**, the languages in
+scope, and your preferences. It is not shipped: the first time you run `pair`, `guided`, or `drill`
+without one, they route you into `learning:profile-init`, which interviews you, checks the result
+for coherence (edge↔language fit, level coherence, redundancy, focus) before writing, and registers
+any new edges/languages in your living vocabulary.
+
+| Command | Use it when |
+|---|---|
+| `/learning:profile-init` | First-time setup, or rebuilding the profile from scratch. |
+| `/learning:profile-update` | Add a language or edge, adjust a level, or change preferences/goals. |
+
+Learning a language from scratch is just a **novice-level, language-oriented edge** named
+`<lang>-fundamentals` (e.g. `rust-fundamentals`) — it coexists with expert edges like `hpc`, and
+each is pitched at its own level.
+
+### Per-project focus (optional)
+
+Drop a `.claude/learning.local.md` in a repo to scope a session's attention without fragmenting the
+global log:
+
+```markdown
+---
+edges: [hpc, internals]
+languages: [cpp]
+---
+Focus for this repo: the ray-tracer hot loops.
+```
+
+The modes read it at session start and emphasize those edges/languages; the log stays global, so
+spacing and cross-project transfer are unaffected.
+
 ## Shared core
 
 Edit these once; all skills follow.
 
 | File | Purpose |
 |---|---|
-| `shared/learning-profile.md` | Calibration, growth edges, trigger phrases, tuning constants, pinned log vocabularies. |
+| `shared/calibration-core.md` | Invariant teaching rules: depth rule, trigger phrases, tuning constants, the fixed `type`/`signal` vocabulary, the session-start profile bootstrap, and the project-focus overlay rule. |
 | `shared/teaching-protocol.md` | Predict-before-reveal, bounded correction, escape valve, verification rule. |
 | `shared/hint-ladder.md` | Graduated unblocking and the retrieval-first review. |
 
-The profile and protocol are **spliced into each SKILL.md at build time** by `bin/sync-shared`,
-between `<!-- BEGIN shared:... -->` markers. `shared/` stays the single place you edit; the skills
-carry a generated copy.
+The **calibration core** and protocol are **spliced into each mode SKILL.md at build time** by
+`bin/sync-shared`, between `<!-- BEGIN shared:... -->` markers. `shared/` stays the single place you
+edit; the skills carry a generated copy.
+
+The **personal profile** is not shipped or spliced. It is generated per user by the
+`learning:profile-init` skill into `~/.config/learning-toolkit/learning-profile.md` and loaded at
+session start via `bin/learn-profile show`. A generic skeleton lives at
+`templates/learning-profile.template.md`, and a filled reference at
+`templates/learning-profile.example.md` (not loaded at runtime).
 
 **After editing anything in `shared/`, run `bin/sync-shared`.** Use `bin/sync-shared --check` in CI
 or a pre-commit hook to catch drift.
@@ -59,6 +99,8 @@ learn-log      --type hit --concept false-sharing --edge hpc --lang cpp   # vali
 learn-queue    --pick 4          # what to practise, interleaved across edges
 learn-queue    --stats           # success rate vs target, graduations, reactivations
 learn-queue    --concepts        # existing slugs, to avoid coining duplicates
+learn-vocab    list|add|remove --edges X --langs Y   # the living edge/lang vocabulary
+learn-profile  path [--ensure-dir] | show            # load/locate the personal profile
 learn-baseline set|commits|advance|clear                                  # pair check-in windows
 learn-session  start|end|status|config reinject on
 bench          doctor|run|compare|vec|perf|cachegrind
@@ -160,7 +202,7 @@ and says so; confirm anything load-bearing with real JMH.
 
 ## Config files
 
-Everything lives in `${XDG_CONFIG_HOME:-$HOME/.config}/learning-toolkit/`. All three files are
+Everything lives in `${XDG_CONFIG_HOME:-$HOME/.config}/learning-toolkit/`. All of these are
 created **lazily on first use**, so "missing" is normal rather than broken:
 
 | File | What | Created by |
@@ -168,6 +210,8 @@ created **lazily on first use**, so "missing" is normal rather than broken:
 | `learning-log.jsonl` | the learning log | first logged entry |
 | `config.json` | toolkit settings (`reinject`) | `learn-session config <key> <val>` |
 | `compilers.json` | `bench --both` compiler set | `bench config --init` |
+| `vocab.json` | living edge/lang vocabulary | `learn-vocab add`, or any first use (seeded) |
+| `learning-profile.md` | the personal learner profile | `learning:profile-init` |
 
 ```bash
 learn-session status     # where everything is, and what exists yet
@@ -182,14 +226,16 @@ One log across **all** projects, because language internals and HPC are cross-pr
 concept practised in one repo should inform spacing everywhere. Every entry carries `project`, so
 extractors can slice per-repo while the default view stays global.
 
-One JSON object per line, optimised for `tail`/`grep` rather than for reading. Vocabularies are
-closed and enforced by `learn-log`; a typo is rejected rather than silently corrupting the queue.
+One JSON object per line, optimised for `tail`/`grep` rather than for reading. `type` and `signal` are closed and enforced by `learn-log` (they are bound to the queue's
+scheduling logic). `edge` and `lang` are a living vocabulary you grow with `learn-vocab`; `skill`
+is derived from the installed skills. A value outside the valid set is rejected rather than
+silently corrupting the queue.
 
 ```
 type    taught skipped edge-confirmed calibration to-cover escape hit miss
         graduated reactivated self-assessment
-edge    internals hpc concurrency none
-lang    c cpp python java none
+edge    living — your own vocabulary; see `learn-vocab list`; `none` always valid
+lang    living — your own vocabulary; see `learn-vocab list`; `none` always valid
 signal  calibration     -> already-known declined-deepdive below-level
         self-assessment -> found-self missed-self overconfident underconfident
 ```
@@ -212,7 +258,7 @@ The `pair` baseline commit is deliberately **not** here — a SHA is project-spe
 
 ## Tuning
 
-Every constant lives in exactly two places, kept in sync: `shared/learning-profile.md` (what Claude
+Every constant lives in exactly two places, kept in sync: `shared/calibration-core.md` (what Claude
 reads) and the top of `bin/learn-queue` (what is computed).
 
 ```python
@@ -229,7 +275,7 @@ your success rate sits well under target the exercises are too hard, and well ov
 
 Skill content is loaded into the conversation **once and never re-read**, and auto-compaction keeps
 only roughly the first 5,000 tokens of each skill. In a long session the protocol can therefore
-fade — and the first rule to go is the one that fights the drive to finish: *ask him to predict,
+fade — and the first rule to go is the one that fights the drive to finish: *ask them to predict,
 then stop and wait*.
 
 Two defences ship here. The shared core is kept small with the hard rules front-loaded, so

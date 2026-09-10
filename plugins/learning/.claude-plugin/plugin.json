@@ -2,7 +2,7 @@
   "name": "learning",
   "displayName": "Learning Toolkit",
   "description": "Turns Claude Code into an interactive coding teacher for deliberate practice on language internals and HPC/optimization. Three session modes over a shared teaching core, with a global spaced-repetition log and a measurement harness that refuses to assert unverified performance claims.",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "author": {
     "name": "David Engel",
     "email": "drengel88@gmail.com"
