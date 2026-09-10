@@ -2,23 +2,27 @@
 """Append one validated entry to the global learning log.
 
 The log is append-only JSONL, one object per line, optimised for cheap machine reading
-(tail/grep, no full-file parse). This script is the only supported writer: it enforces the
-closed vocabularies pinned in shared/learning-profile.md so a typo can never silently
-corrupt the queue that drives spaced repetition.
+(tail/grep, no full-file parse). This script is the only supported writer. `type`/`signal` are fixed here (they are bound to
+learn-queue logic); `edge`/`lang` are validated against the living vocabulary in vocab.json
+(managed by bin/learn-vocab); `skill` is derived from the skills directory. A typo is rejected
+so it can never silently corrupt the queue that drives spaced repetition.
 
 Exit codes: 0 ok, 2 validation error.
 """
 
 import argparse
 import json
-import os
 import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Closed vocabularies. Keep these SMALL and FIXED; they are mirrored in
-# shared/learning-profile.md and must be changed in both places together.
+from _toolkit import config_dir, load_vocab, plugin_skills
+
+# `type`/`signal` are FIXED here because learn-queue scheduling keys off these exact values.
+# `edge`/`lang`/`skill` are NOT fixed: edge/lang come from the living vocab.json (see
+# bin/learn-vocab) and skill is derived from the skills directory, both resolved at runtime
+# in main().
 TYPES = {
     "taught",          # concept taught in context
     "skipped",         # deep-dive offered and declined, or deliberately deferred
@@ -33,10 +37,6 @@ TYPES = {
     "self-assessment", # self-assessment vs reality delta
 }
 
-EDGES = {"internals", "hpc", "concurrency", "none"}
-LANGS = {"c", "cpp", "python", "java", "none"}
-SKILLS = {"guided", "pair", "drill", "flag", "none"}
-
 # `signal` is scoped per type: a signal only means something for the types that define it.
 SIGNALS = {
     "calibration": {"already-known", "declined-deepdive", "below-level"},
@@ -49,14 +49,8 @@ CONCEPT_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 MAX_CONCEPT_LEN = 64
 
 
-def log_dir() -> Path:
-    """Resolve the single global log directory all skills must agree on."""
-    base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
-    return Path(base) / "learning-toolkit"
-
-
 def log_path() -> Path:
-    return log_dir() / "learning-log.jsonl"
+    return config_dir() / "learning-log.jsonl"
 
 
 def known_concepts() -> set:
@@ -94,15 +88,20 @@ def detect_project() -> str:
 
 
 def main() -> None:
+    vocab = load_vocab()
+    edges = vocab["edges"] | {"none"}
+    langs = vocab["langs"] | {"none"}
+    skills = plugin_skills() | {"none"}
+
     p = argparse.ArgumentParser(
         prog="learn-log",
         description="Append a validated entry to the global learning log.",
     )
     p.add_argument("--type", required=True, help=f"one of: {' '.join(sorted(TYPES))}")
     p.add_argument("--concept", required=True, help="stable kebab-case slug, global namespace")
-    p.add_argument("--edge", default="none", help=f"one of: {' '.join(sorted(EDGES))}")
-    p.add_argument("--lang", default="none", help=f"one of: {' '.join(sorted(LANGS))}")
-    p.add_argument("--skill", default="none", help=f"one of: {' '.join(sorted(SKILLS))}")
+    p.add_argument("--edge", default="none", help=f"one of: {' '.join(sorted(edges))}")
+    p.add_argument("--lang", default="none", help=f"one of: {' '.join(sorted(langs))}")
+    p.add_argument("--skill", default="none", help=f"one of: {' '.join(sorted(skills))}")
     p.add_argument("--signal", default=None, help="type-scoped; see --help-signals")
     p.add_argument("--project", default=None, help="repo name (auto-detected if omitted)")
     p.add_argument("--note", default=None, help="short free text, for humans")
@@ -118,12 +117,14 @@ def main() -> None:
 
     if args.type not in TYPES:
         fail(f"invalid --type {args.type!r}. Valid: {' '.join(sorted(TYPES))}")
-    if args.edge not in EDGES:
-        fail(f"invalid --edge {args.edge!r}. Valid: {' '.join(sorted(EDGES))}")
-    if args.lang not in LANGS:
-        fail(f"invalid --lang {args.lang!r}. Valid: {' '.join(sorted(LANGS))}")
-    if args.skill not in SKILLS:
-        fail(f"invalid --skill {args.skill!r}. Valid: {' '.join(sorted(SKILLS))}")
+    if args.edge not in edges:
+        fail(f"invalid --edge {args.edge!r}. Valid: {' '.join(sorted(edges))}\n"
+             f"       add it with: bin/learn-vocab add --edges {args.edge}")
+    if args.lang not in langs:
+        fail(f"invalid --lang {args.lang!r}. Valid: {' '.join(sorted(langs))}\n"
+             f"       add it with: bin/learn-vocab add --langs {args.lang}")
+    if args.skill not in skills:
+        fail(f"invalid --skill {args.skill!r}. Valid: {' '.join(sorted(skills))}")
 
     concept = args.concept.strip()
     if not CONCEPT_RE.match(concept):
