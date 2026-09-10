@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # --- Tuning constants -------------------------------------------------------------------
-# PLACEHOLDERS, not findings. Mirrored in shared/learning-profile.md; change both together.
+# PLACEHOLDERS, not findings. Mirrored in shared/calibration-core.md; change both together.
 
 # Successes required to retire a concept from active rotation.
 GRADUATION_SUCCESSES = 3

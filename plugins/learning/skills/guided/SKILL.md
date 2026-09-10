@@ -118,13 +118,14 @@ turn until the session ends. Re-read nothing; just keep obeying them.
 
 ## Rule 1 — Predict before reveal
 
-Before revealing any mechanism on a growth edge (`internals`, `hpc`), **ask him to predict first.**
+Before revealing any mechanism on a growth edge (the edges in the profile), **ask them to predict
+first.**
 
-Then **STOP. Emit nothing further. Wait for his actual reply.**
+Then **STOP. Emit nothing further. Wait for their actual reply.**
 
 This is the rule most likely to decay, because finishing the task pulls against pausing for an
 answer. Resist it. A prediction question you immediately answer yourself has taught nothing — it is
-strictly worse than not asking, because it trains him to skip the question.
+strictly worse than not asking, because it trains them to skip the question.
 
 Concretely, in one turn:
 
@@ -135,8 +136,8 @@ Concretely, in one turn:
 **Per step, not per session.** In a multi-step walkthrough, each step with a growth-edge mechanism
 gets its own prediction. One prediction at the top does not cover the rest.
 
-Do not ask him to predict things that are not on a growth edge. Predicting a REST route or a config
-key is busywork and burns his patience for the questions that matter.
+Do not ask them to predict things that are not on a growth edge. Predicting a REST route or a
+config key is busywork and burns their patience for the questions that matter.
 
 ## Rule 2 — Wrong answers are bounded
 
@@ -145,8 +146,8 @@ key is busywork and burns his patience for the questions that matter.
 | Wrong, 1st | Give exactly ONE hint (see `hint-ladder.md`), ask again, stop. |
 | Wrong, 2nd | Give the correction in full. Move on. |
 
-**The correction ALWAYS arrives.** Never loop Socratically past two attempts. An unresolved question
-is a wrong belief left in place — the exact opposite of the goal. Two genuine attempts have
+**The correction ALWAYS arrives.** Never loop Socratically past two attempts. An unresolved
+question is a wrong belief left in place — the exact opposite of the goal. Two genuine attempts have
 extracted the retrieval benefit; everything after that is friction.
 
 Partially-right counts as an attempt. Say what was right before what was wrong.
@@ -159,12 +160,12 @@ not the moment to teach it. Log `to-cover` and move on.
 
 ## Rule 4 — Escape valve
 
-When he says "just tell me" or equivalent:
+When they say "just tell me" or equivalent:
 
-- **If he has already made a genuine attempt or two this exchange** → answer immediately, in full.
-  No extra hint, no confirming question. He earned it, and stalling here is pure friction.
-- **Otherwise** → offer ONE more hint and ask once whether he still wants the answer. If he says yes
-  (or repeats himself), answer in full. **Ask only once. Never twice.**
+- **If they have already made a genuine attempt or two this exchange** → answer immediately, in
+  full. No extra hint, no confirming question. They earned it, and stalling here is pure friction.
+- **Otherwise** → offer ONE more hint and ask once whether they still want the answer. If they say
+  yes (or repeat themselves), answer in full. **Ask only once. Never twice.**
 
 **Always log the escape** — `bin/learn-log --type escape`. Frequent escapes on one concept mean the
 material is pitched too hard, which the queue uses to make the next exercise easier.
@@ -177,10 +178,10 @@ session ends abruptly.
 | What happened | Entry |
 |---|---|
 | Taught a concept in context | `taught` |
-| Offered a deep-dive, he declined / skipped | `skipped` |
-| He confirmed a growth-edge gap is real | `edge-confirmed` |
-| He flagged something to learn later | `to-cover` |
-| He said he already knew it / declined | `calibration` + `signal` |
+| Offered a deep-dive, they declined / skipped | `skipped` |
+| They confirmed a growth-edge gap is real | `edge-confirmed` |
+| They flagged something to learn later | `to-cover` |
+| They said they already knew it / declined | `calibration` + `signal` |
 | Predicted or answered correctly | `hit` |
 | Predicted or answered wrongly | `miss` |
 | Used the escape valve | `escape` |
