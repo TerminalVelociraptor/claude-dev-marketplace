@@ -50,38 +50,49 @@ class LearnVocabTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("was not present", r.stdout)
 
-    def test_remove_namespaces_separate_in_log_check(self):
-        """Verify that the lingering-log check respects edge/lang namespaces.
-
-        If a slug appears as a lang in the log, removing it as an edge
-        should NOT report it as lingering. Conversely, if it appears as
-        an edge in the log, removing that edge SHOULD report it lingering.
+    def test_remove_namespace_negative_lang_only(self):
+        """NEGATIVE: If a slug appears ONLY as a lang in the log, removing it as
+        an edge should NOT report lingering. This proves the namespace fix — the
+        old buggy flatten code would wrongly report it as lingering.
         """
-        # Seed the log with entries using "python" as both edge and lang
-        # Note: config_dir() returns XDG_CONFIG_HOME/learning-toolkit
+        # Seed log with "rust" appearing ONLY as a lang, never as an edge
         log_path = Path(self.env["XDG_CONFIG_HOME"]) / "learning-toolkit" / "learning-log.jsonl"
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with log_path.open("w") as f:
-            # Entry where python is a lang (but we'll remove it as an edge)
-            f.write(json.dumps({"timestamp": "2026-01-01T00:00:00Z", "lang": "python"}) + "\n")
-            # Entry where python is an edge (so removing the edge should linger)
-            f.write(json.dumps({"timestamp": "2026-01-02T00:00:00Z", "edge": "python"}) + "\n")
+            f.write(json.dumps({"type": "taught", "concept": "x", "lang": "rust", "edge": "none"}) + "\n")
 
-        # Add python as both edge and lang
-        self.assertEqual(run(["add", "--edges", "python", "--langs", "python"], self.env).returncode, 0)
+        # Add rust as an edge (not a lang, to keep it isolated)
+        self.assertEqual(run(["add", "--edges", "rust"], self.env).returncode, 0)
 
-        # Test 1: Removing the edge should report lingering (because edge appears in log)
-        r = run(["remove", "--edges", "python"], self.env)
+        # Remove rust as an edge. It does NOT appear as an edge in the log,
+        # only as a lang, so the "still present" note should NOT fire.
+        # (The buggy flatten code would fire it anyway.)
+        r = run(["remove", "--edges", "rust"], self.env)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("removed edge python", r.stdout)
-        self.assertIn("still present in existing log entries", r.stdout)
+        self.assertIn("removed edge rust", r.stdout)
+        self.assertNotIn("still present in existing log entries", r.stdout)
 
-        # Test 2: Now remove the lang. The log still has python as a lang entry,
-        # but we're removing it as a lang, so it SHOULD report lingering
-        r = run(["remove", "--langs", "python"], self.env)
+    def test_remove_namespace_positive_edge_in_log(self):
+        """POSITIVE: If a slug appears as an edge in the log, removing it as an
+        edge SHOULD report lingering. Sanity check that the namespace-aware code
+        still detects genuine lingering.
+        """
+        # Seed log with "hpc" appearing as an edge
+        log_path = Path(self.env["XDG_CONFIG_HOME"]) / "learning-toolkit" / "learning-log.jsonl"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with log_path.open("w") as f:
+            f.write(json.dumps({"type": "taught", "concept": "y", "edge": "hpc", "lang": "none"}) + "\n")
+
+        # Add hpc as an edge
+        self.assertEqual(run(["add", "--edges", "hpc"], self.env).returncode, 0)
+
+        # Remove hpc as an edge. It appears as an edge in the log,
+        # so the "still present" note SHOULD fire.
+        r = run(["remove", "--edges", "hpc"], self.env)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("removed lang python", r.stdout)
+        self.assertIn("removed edge hpc", r.stdout)
         self.assertIn("still present in existing log entries", r.stdout)
+        self.assertIn("hpc", r.stdout)
 
 
 if __name__ == "__main__":
