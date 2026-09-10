@@ -3,7 +3,7 @@ name: drill
 description: Targeted practice session driven by your accumulated weaknesses rather than by real work. Picks 2-4 concepts from the learning log, interleaves them, and serves verified completion/repair and predict-then-measure exercises on memory, allocators, codegen, cache behaviour, vectorization and branch prediction. Use when you want deliberate practice instead of shipping something.
 disable-model-invocation: true
 argument-hint: [optional: concept, edge, or "30 min"]
-allowed-tools: Bash(${CLAUDE_SKILL_DIR}/../../bin/learn-session *), Bash(${CLAUDE_SKILL_DIR}/../../bin/learn-log *), Bash(${CLAUDE_SKILL_DIR}/../../bin/learn-profile *), Bash(${CLAUDE_SKILL_DIR}/../../bin/learn-queue *), Bash(${CLAUDE_SKILL_DIR}/../../bin/bench *)
+allowed-tools: Bash(${CLAUDE_SKILL_DIR}/../../bin/learn-session *), Bash(${CLAUDE_SKILL_DIR}/../../bin/learn-log *), Bash(${CLAUDE_SKILL_DIR}/../../bin/learn-profile *), Bash(${CLAUDE_SKILL_DIR}/../../bin/learn-vocab *), Bash(${CLAUDE_SKILL_DIR}/../../bin/learn-queue *), Bash(${CLAUDE_SKILL_DIR}/../../bin/bench *)
 ---
 
 # Drill — targeted practice on accumulated weaknesses
@@ -255,7 +255,7 @@ ${CLAUDE_SKILL_DIR}/../../bin/learn-session start ${CLAUDE_SESSION_ID} --mode dr
 ```
 
 
-Ask, in one line: **time-boxed or open-ended?** If he gave a duration in `$ARGUMENTS`, use it and
+Ask, in one line: **time-boxed or open-ended?** If they gave a duration in `$ARGUMENTS`, use it and
 skip the question. A 30-minute box means roughly two concepts and three or four exercises — plan to
 finish, not to be interrupted mid-exercise.
 
@@ -270,12 +270,12 @@ Honour its `difficulty` column per concept — `easier`, `hold` or `harder`. Rep
 next exercise gets **easier**. This is not negotiable and it is the rule most likely to feel wrong
 in the moment: retrieval practice only produces benefit when retrieval mostly *succeeds*.
 
-If the queue is empty, say so and offer to work from something he names instead.
+If the queue is empty, say so and offer to work from something they name instead.
 
 **Interleave.** Mix the concepts within the session — never all of concept A, then all of concept B.
 Rotate: A, B, A, C, B. Interleaving is the mechanism that makes this different from re-reading, and
 blocking by concept quietly discards it. Interleaving feels worse in the moment and works better;
-say so once if he pushes back.
+say so once if they push back.
 
 ## 3. Generate and VERIFY every exercise before serving it
 
@@ -315,14 +315,14 @@ Spend the tokens. Correctness is the whole point.
 flawed one to fix. Best-supported form for procedural skill transfer, which is exactly the target
 domain. Most exercises should be this.
 
-**2. Predict-then-measure (co-primary).** He predicts which is faster, or what the cache behaviour
+**2. Predict-then-measure (co-primary).** They predict which is faster, or what the cache behaviour
 will be, and why — *then* you run it together and reconcile. Self-verifying: the measurement is the
-verification. Grounds the HPC edge in real numbers from his own machine.
+verification. Grounds the relevant growth edge in real numbers from their own machine.
 
-> Run this **inline, with him**. The measurement is the pedagogy — never hide it in a subagent.
+> Run this **inline, with them**. The measurement is the pedagogy — never hide it in a subagent.
 > Get the prediction **before** running anything. A prediction after seeing the number is worthless.
 
-**3. Implement-then-critique (third).** He implements, then you critique through the hint ladder.
+**3. Implement-then-critique (third).** They implement, then you critique through the hint ladder.
 Use sparingly; it overlaps with `pair`.
 
 ### Compiler-divergence exercises (a two-stage variant of predict-then-measure)
@@ -330,14 +330,14 @@ Use sparingly; it overlaps with `pair`.
 For a function where `bench vec --both` reports `diverges`, run a **staged** exercise. Never
 open with the `--both` output: it is the reveal, not the setup.
 
-1. Predict for his default compiler (**clang**, the proxy for icx at work). Then stop.
+1. Predict for their default compiler (per the profile's preferences). Then stop.
 2. Run `bench vec --src <f> --func <n>` — single compiler. Reconcile.
 3. **Second prediction:** "does GCC agree?" Then stop.
 4. Run `bench vec --src <f> --func <n> --both`. The divergence is the payoff, and the
    declining compiler's own remark (e.g. `CantReorderFPOps`) names the mechanism.
 
 **Gate this on difficulty.** Two-stage exercises are harder, so serve them only when the queue
-reports `harder` for that concept. Never when it reports `easier` — a concept he has been
+reports `harder` for that concept. Never when it reports `easier` — a concept they have been
 missing needs a rebuilt success, not an extra axis of difficulty.
 
 Log under the **mechanism** concept (`fp-reduction-reordering`), not a separate divergence
@@ -350,7 +350,7 @@ prediction at the top.
 ## 5. Run each exercise
 
 1. State the concept and what is being asked. No preamble.
-2. Get his prediction or attempt. **Then stop and wait.**
+2. Get their prediction or attempt. **Then stop and wait.**
 3. Wrong → one hint from the ladder, ask again. Wrong twice → full correction, move on.
 4. Reconcile against the evidence. Show the actual command output.
 5. Log immediately:
@@ -366,7 +366,7 @@ is wrong — ease off rather than pushing through.
 ## 6. Close
 
 Run the **retrieval-first review** from `${CLAUDE_PLUGIN_ROOT}/shared/hint-ladder.md`: silent
-evaluation, generic opening question, escalate only as he fails to find things, correction
+evaluation, generic opening question, escalate only as they fail to find things, correction
 guaranteed.
 
 Then:
