@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+"""Manage the living edge/lang vocabulary in vocab.json.
+
+vocab.json is the single source of truth for valid `--edge`/`--lang` values.
+learn-log reads it at runtime, so adding a value here makes it loggable
+everywhere with no code change.
+
+Exit codes: 0 ok, 2 validation error.
+"""
+
+import argparse
+import json
+import re
+import sys
+
+from _toolkit import config_dir, load_vocab, save_vocab
+
+KEBAB_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+RESERVED = {"none"}  # validator sentinel; never a stored vocab value
+
+
+def fail(msg: str) -> "None":
+    print(f"learn-vocab: {msg}", file=sys.stderr)
+    sys.exit(2)
+
+
+def validate(values, kind):
+    for v in values:
+        if v in RESERVED:
+            fail(f"{v!r} is reserved and always valid; do not add it")
+        if not KEBAB_RE.match(v):
+            fail(f"invalid {kind} {v!r}: must be kebab-case, e.g. 'rust-fundamentals'")
+
+
+def still_in_log(values) -> set:
+    """Removed values that still appear in the append-only log (for a note only)."""
+    if not values:
+        return set()
+    path = config_dir() / "learning-log.jsonl"
+    if not path.exists():
+        return set()
+    wanted, seen = set(values), set()
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                e = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            for key in ("edge", "lang"):
+                if e.get(key) in wanted:
+                    seen.add(e[key])
+    return seen
+
+
+def cmd_list(args):
+    vocab = load_vocab()
+    if args.edges and not args.langs:
+        for e in sorted(vocab["edges"]):
+            print(e)
+        return
+    if args.langs and not args.edges:
+        for v in sorted(vocab["langs"]):
+            print(v)
+        return
+    if args.json:
+        print(json.dumps(
+            {"edges": sorted(vocab["edges"]), "langs": sorted(vocab["langs"])},
+            indent=2))
+        return
+    print("edges: " + " ".join(sorted(vocab["edges"])))
+    print("langs: " + " ".join(sorted(vocab["langs"])))
+
+
+def cmd_add(args):
+    if not args.edges and not args.langs:
+        fail("nothing to add; pass --edges and/or --langs")
+    validate(args.edges, "edge")
+    validate(args.langs, "lang")
+    vocab = load_vocab()
+    added, existed = [], []
+    for e in args.edges:
+        (existed if e in vocab["edges"] else added).append(("edge", e))
+        vocab["edges"].add(e)
+    for v in args.langs:
+        (existed if v in vocab["langs"] else added).append(("lang", v))
+        vocab["langs"].add(v)
+    save_vocab(vocab)
+    for kind, v in added:
+        print(f"added {kind} {v}")
+    for kind, v in existed:
+        print(f"{kind} {v} already present")
+
+
+def cmd_remove(args):
+    if not args.edges and not args.langs:
+        fail("nothing to remove; pass --edges and/or --langs")
+    vocab = load_vocab()
+    removed, missing = [], []
+    for e in args.edges:
+        if e in vocab["edges"]:
+            vocab["edges"].discard(e)
+            removed.append(("edge", e))
+        else:
+            missing.append(("edge", e))
+    for v in args.langs:
+        if v in vocab["langs"]:
+            vocab["langs"].discard(v)
+            removed.append(("lang", v))
+        else:
+            missing.append(("lang", v))
+    save_vocab(vocab)
+    for kind, v in removed:
+        print(f"removed {kind} {v}")
+    for kind, v in missing:
+        print(f"{kind} {v} was not present")
+    lingering = still_in_log([v for _, v in removed])
+    if lingering:
+        print(f"note: still present in existing log entries: {' '.join(sorted(lingering))}")
+        print("      the append-only log is not rewritten; those entries keep their value.")
+
+
+def main():
+    p = argparse.ArgumentParser(
+        prog="learn-vocab", description="Manage the living edge/lang vocabulary.")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    pl = sub.add_parser("list", help="list the vocabulary")
+    pl.add_argument("--edges", action="store_true", help="only edges (bare, one per line)")
+    pl.add_argument("--langs", action="store_true", help="only langs (bare, one per line)")
+    pl.add_argument("--json", action="store_true", help="machine-readable output")
+    pl.set_defaults(func=cmd_list)
+
+    pa = sub.add_parser("add", help="add edges and/or langs")
+    pa.add_argument("--edges", nargs="+", default=[], metavar="EDGE")
+    pa.add_argument("--langs", nargs="+", default=[], metavar="LANG")
+    pa.set_defaults(func=cmd_add)
+
+    pr = sub.add_parser("remove", help="remove edges and/or langs")
+    pr.add_argument("--edges", nargs="+", default=[], metavar="EDGE")
+    pr.add_argument("--langs", nargs="+", default=[], metavar="LANG")
+    pr.set_defaults(func=cmd_remove)
+
+    args = p.parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()
