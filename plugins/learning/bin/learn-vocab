@@ -32,14 +32,28 @@ def validate(values, kind):
             fail(f"invalid {kind} {v!r}: must be kebab-case, e.g. 'rust-fundamentals'")
 
 
-def still_in_log(values) -> set:
-    """Removed values that still appear in the append-only log (for a note only)."""
-    if not values:
+def still_in_log(removed) -> set:
+    """Removed values that still appear in the append-only log (for a note only).
+
+    Args:
+        removed: list of (kind, value) tuples where kind is "edge" or "lang"
+
+    Returns:
+        set of values that still appear in their corresponding namespace in the log
+    """
+    if not removed:
         return set()
     path = config_dir() / "learning-log.jsonl"
     if not path.exists():
         return set()
-    wanted, seen = set(values), set()
+    # Build a map of kind -> set of values to check
+    wanted = {}
+    for kind, value in removed:
+        if kind not in wanted:
+            wanted[kind] = set()
+        wanted[kind].add(value)
+
+    seen = set()
     with path.open(encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
@@ -49,9 +63,10 @@ def still_in_log(values) -> set:
                 e = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            for key in ("edge", "lang"):
-                if e.get(key) in wanted:
-                    seen.add(e[key])
+            # Check each kind only against its own namespace
+            for kind in ("edge", "lang"):
+                if kind in wanted and e.get(kind) in wanted[kind]:
+                    seen.add(e[kind])
     return seen
 
 
@@ -116,7 +131,7 @@ def cmd_remove(args):
         print(f"removed {kind} {v}")
     for kind, v in missing:
         print(f"{kind} {v} was not present")
-    lingering = still_in_log([v for _, v in removed])
+    lingering = still_in_log(removed)
     if lingering:
         print(f"note: still present in existing log entries: {' '.join(sorted(lingering))}")
         print("      the append-only log is not rewritten; those entries keep their value.")
