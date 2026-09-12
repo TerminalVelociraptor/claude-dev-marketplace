@@ -95,5 +95,33 @@ class LearnVocabTest(unittest.TestCase):
         self.assertIn("hpc", r.stdout)
 
 
+class LearnVocabCorruptionTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = TemporaryDirectory()
+        self.env = dict(os.environ, XDG_CONFIG_HOME=self._tmp.name, PYTHONDONTWRITEBYTECODE="1")
+        self.vocab = Path(self._tmp.name) / "learning-toolkit" / "vocab.json"
+        self.vocab.parent.mkdir(parents=True)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_list_warns_and_falls_back_to_seeds(self):
+        self.vocab.write_text("{not json", encoding="utf-8")
+        r = run(["list", "--edges"], self.env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(str(self.vocab), r.stderr)
+        self.assertEqual(set(r.stdout.split()), {"internals", "hpc", "concurrency"})
+
+    def test_mutations_refuse_and_leave_file_untouched(self):
+        for body in ("{not json", json.dumps({"edges": "hpc", "langs": []})):
+            self.vocab.write_text(body, encoding="utf-8")
+            for args in (["add", "--langs", "rust"], ["remove", "--edges", "hpc"]):
+                r = run(args, self.env)
+                self.assertEqual(r.returncode, 2, (body, args))
+                self.assertIn("refusing to modify", r.stderr)
+                self.assertIn("move it aside", r.stderr)
+                self.assertEqual(self.vocab.read_text(encoding="utf-8"), body)
+
+
 if __name__ == "__main__":
     unittest.main()

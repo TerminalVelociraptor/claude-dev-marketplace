@@ -13,7 +13,7 @@ import json
 import re
 import sys
 
-from _toolkit import config_dir, load_vocab, save_vocab
+from _toolkit import VocabError, config_dir, load_vocab, save_vocab, vocab_path
 
 KEBAB_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 RESERVED = {"none"}  # validator sentinel; never a stored vocab value
@@ -22,6 +22,16 @@ RESERVED = {"none"}  # validator sentinel; never a stored vocab value
 def fail(msg: str) -> "None":
     print(f"learn-vocab: {msg}", file=sys.stderr)
     sys.exit(2)
+
+
+def load_for_update() -> dict:
+    """Load for a mutation: a malformed file is refused, never overwritten with seeds."""
+    try:
+        return load_vocab(strict=True)
+    except VocabError as exc:
+        path = vocab_path()
+        fail(f"refusing to modify the vocabulary: {exc}\n"
+             f"       fix it, or move it aside (mv {path} {path}.bad) and re-run")
 
 
 def validate(values, kind):
@@ -94,7 +104,7 @@ def cmd_add(args):
         fail("nothing to add; pass --edges and/or --langs")
     validate(args.edges, "edge")
     validate(args.langs, "lang")
-    vocab = load_vocab()
+    vocab = load_for_update()
     added, existed = [], []
     for e in args.edges:
         (existed if e in vocab["edges"] else added).append(("edge", e))
@@ -112,7 +122,7 @@ def cmd_add(args):
 def cmd_remove(args):
     if not args.edges and not args.langs:
         fail("nothing to remove; pass --edges and/or --langs")
-    vocab = load_vocab()
+    vocab = load_for_update()
     removed, missing = [], []
     for e in args.edges:
         if e in vocab["edges"]:

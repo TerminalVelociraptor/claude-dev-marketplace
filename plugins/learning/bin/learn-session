@@ -13,7 +13,7 @@ import sys
 import time
 from pathlib import Path
 
-STALE_AFTER_SECONDS = 24 * 3600  # a session left open overnight is over, whatever it says
+from _toolkit import SESSION_STALE_SECONDS
 
 DEFAULT_CONFIG = {
     # Deterministic re-injection of the protocol's core rules on every prompt during a
@@ -58,7 +58,7 @@ def sweep_stale() -> int:
     now = time.time()
     for marker in d.glob("*.active"):
         try:
-            if now - marker.stat().st_mtime > STALE_AFTER_SECONDS:
+            if now - marker.stat().st_mtime > SESSION_STALE_SECONDS:
                 marker.unlink()
                 removed += 1
         except OSError:
@@ -72,7 +72,7 @@ def main() -> None:
 
     s = sub.add_parser("start", help="mark a session active")
     s.add_argument("session_id")
-    s.add_argument("--mode", default="unknown", help="guided | pair | drill")
+    s.add_argument("--mode", default="unknown", help="guided | pair")
 
     e = sub.add_parser("end", help="end a session")
     e.add_argument("session_id")
@@ -112,7 +112,8 @@ def main() -> None:
         files = [
             ("learning-log.jsonl", "learning log", "created on the first logged entry"),
             ("config.json", "toolkit settings", "created by `learn-session config <key> <val>`"),
-            ("compilers.json", "bench compiler set", "created by `bench config --init`"),
+            ("vocab.json", "edge/lang vocabulary", "seeded on first use of learn-log or learn-vocab"),
+            ("learning-profile.md", "learner profile", "created by the learning:profile-init skill"),
         ]
         for name, what, how in files:
             path = config_dir() / name

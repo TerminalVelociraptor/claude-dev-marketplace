@@ -44,6 +44,21 @@ class ToolkitTest(unittest.TestCase):
         _toolkit.save_vocab(vocab)
         self.assertIn("rust", _toolkit.load_vocab()["langs"])
 
+    def test_malformed_vocab_is_never_overwritten(self):
+        path = _toolkit.vocab_path()
+        path.parent.mkdir(parents=True)
+        path.write_text("[1, 2]", encoding="utf-8")
+        with self.assertRaises(_toolkit.VocabError):
+            _toolkit.load_vocab(strict=True)
+        with self.assertRaises(_toolkit.VocabError):
+            _toolkit.save_vocab({"edges": {"x"}, "langs": set()})
+        self.assertEqual(path.read_text(encoding="utf-8"), "[1, 2]")
+
+    def test_load_without_seed_writes_nothing(self):
+        vocab = _toolkit.load_vocab(seed=False)
+        self.assertEqual(vocab["edges"], set(_toolkit.DEFAULT_EDGES))
+        self.assertFalse(_toolkit.vocab_path().exists())
+
     def test_plugin_skills_finds_real_skill_dirs(self):
         skills = _toolkit.plugin_skills()
         self.assertIn("pair", skills)

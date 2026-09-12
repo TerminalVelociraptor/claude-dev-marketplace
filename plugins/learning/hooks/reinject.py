@@ -4,15 +4,19 @@
 Why this exists: skill content is loaded into the conversation once and never re-read, and
 auto-compaction keeps only the first ~5,000 tokens of each skill under a shared budget. In a
 long session the protocol can therefore decay -- and the first rules to go are the ones that
-fight the model's drive to completion, above all "ask him to predict, then STOP and wait".
+fight the model's drive to completion, above all "ask them to predict, then STOP and wait".
 
 This hook is a deterministic backstop for that decay. It is OFF by default: it emits nothing
 unless BOTH of the following hold, so it stays silent during all ordinary work.
 
-  1. A learning session is active  -> sessions/<session_id>.active exists
+  1. A learning session is active  -> sessions/<session_id>.active exists and is under 24h old
   2. Re-injection is enabled       -> config.json has {"reinject": true}
 
-Enable with:  learning-toolkit config reinject on   (see README)
+Enable with:  learn-session config reinject on   (see README)
+
+A marker older than 24 hours is a session that ended without cleanup; the hook stays silent and
+leaves deleting it to learn-session's sweep. The reminder is deliberately generic: the hook never
+parses or injects the learner profile.
 
 Exits 0 always. A hook that fails must never break the session.
 """
@@ -20,16 +24,17 @@ Exits 0 always. A hook that fails must never break the session.
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 REMINDER = """<learning-session-active>
 Standing rules for this learning session (see teaching-protocol.md):
-- Before revealing any growth-edge mechanism (internals/hpc), ask him to PREDICT first, then
-  STOP and end the turn. Do not answer your own question.
+- Before revealing a mechanism on any growth edge in the loaded profile, ask them to PREDICT
+  first, then STOP and end the turn. Do not answer your own question.
 - Wrong answer: ONE hint, ask again. Wrong twice: give the full correction and move on.
   The correction always arrives; never loop Socratically.
-- In `pair` mode you are SILENT between check-ins and you do not write his code.
-- Never assert a measurable claim you have not measured with `bench`.
+- In `pair` mode you are SILENT between check-ins and you do not write their code.
+- Never assert a measurable claim you have not verified.
 </learning-session-active>"""
 
 
@@ -50,7 +55,17 @@ def main() -> None:
 
     root = config_dir()
 
-    if not (root / "sessions" / f"{session_id}.active").exists():
+    try:
+        age = time.time() - (root / "sessions" / f"{session_id}.active").stat().st_mtime
+    except OSError:
+        return  # no marker: not a learning session
+
+    # The staleness window is shared with learn-session. Imported only once a marker exists, so
+    # ordinary prompts never load it; a failed import is swallowed like any other hook error.
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
+    from _toolkit import SESSION_STALE_SECONDS
+
+    if age > SESSION_STALE_SECONDS:
         return
 
     try:

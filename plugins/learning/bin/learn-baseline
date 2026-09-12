@@ -11,6 +11,7 @@ becomes the new baseline.
 """
 
 import argparse
+import functools
 import subprocess
 import sys
 from pathlib import Path
@@ -24,6 +25,7 @@ def run(args: list, **kw) -> str:
     ).stdout.strip()
 
 
+@functools.lru_cache(maxsize=None)  # main() checks up front, then every subcommand asks again
 def git_dir() -> Path:
     """Resolve the real .git directory, handling worktrees and submodules."""
     try:
@@ -87,6 +89,9 @@ def main() -> None:
     sub.add_parser("clear", help="remove the baseline (ends the session)")
 
     args = p.parse_args()
+    # Every subcommand needs a repository. Checking first keeps `set` from reporting a missing
+    # repository as "no commits yet", which is what its HEAD lookup would otherwise say.
+    git_dir()
 
     if args.cmd == "set":
         sha = args.sha or head()

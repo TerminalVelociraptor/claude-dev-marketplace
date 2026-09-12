@@ -12,6 +12,7 @@ Exit codes: 0 ok, 2 validation error.
 
 import argparse
 import json
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -37,9 +38,11 @@ TYPES = {
     "self-assessment", # self-assessment vs reality delta
 }
 
-# `signal` is scoped per type: a signal only means something for the types that define it.
+# `signal` is scoped per type: a signal only means something for the types that define it,
+# and those types require one when written. Entries logged before that rule are still read.
 SIGNALS = {
-    "calibration": {"already-known", "declined-deepdive", "below-level"},
+    # below-level: the explanation was pitched below them. above-level: pitched above them.
+    "calibration": {"already-known", "declined-deepdive", "below-level", "above-level"},
     "self-assessment": {"found-self", "missed-self", "overconfident", "underconfident"},
 }
 
@@ -53,23 +56,31 @@ def log_path() -> Path:
     return config_dir() / "learning-log.jsonl"
 
 
-def known_concepts() -> set:
-    """Concepts already in the log. Used to nudge reuse over coining near-duplicates."""
+def concept_edges() -> dict:
+    """Concept -> non-`none` edges it has been logged under.
+
+    Membership nudges reuse over coining near-duplicates; the edges catch a concept drifting
+    to an edge it has never carried, which is usually a mislabel.
+    """
     path = log_path()
     if not path.exists():
-        return set()
-    seen = set()
+        return {}
+    seen = {}
     with path.open(encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
             if not line:
                 continue
             try:
-                concept = json.loads(line).get("concept")
+                entry = json.loads(line)
             except json.JSONDecodeError:
                 continue  # tolerate a damaged line rather than refusing to log
-            if concept:
-                seen.add(concept)
+            concept = entry.get("concept")
+            if not concept:
+                continue
+            edges = seen.setdefault(concept, set())
+            if entry.get("edge") and entry["edge"] != "none":
+                edges.add(entry["edge"])
     return seen
 
 
@@ -97,12 +108,14 @@ def main() -> None:
         prog="learn-log",
         description="Append a validated entry to the global learning log.",
     )
-    p.add_argument("--type", required=True, help=f"one of: {' '.join(sorted(TYPES))}")
-    p.add_argument("--concept", required=True, help="stable kebab-case slug, global namespace")
+    # --type/--concept are enforced after the --help-signals check, so that flag works alone.
+    p.add_argument("--type", help=f"required; one of: {' '.join(sorted(TYPES))}")
+    p.add_argument("--concept", help="required; stable kebab-case slug, global namespace")
     p.add_argument("--edge", default="none", help=f"one of: {' '.join(sorted(edges))}")
     p.add_argument("--lang", default="none", help=f"one of: {' '.join(sorted(langs))}")
     p.add_argument("--skill", default="none", help=f"one of: {' '.join(sorted(skills))}")
-    p.add_argument("--signal", default=None, help="type-scoped; see --help-signals")
+    p.add_argument("--signal", default=None,
+                   help=f"required for {'/'.join(sorted(SIGNALS))}; see --help-signals")
     p.add_argument("--project", default=None, help="repo name (auto-detected if omitted)")
     p.add_argument("--note", default=None, help="short free text, for humans")
     p.add_argument("--session", default=None, help="session id, for grouping entries")
@@ -114,6 +127,11 @@ def main() -> None:
         for t, vals in SIGNALS.items():
             print(f"{t}: {' '.join(sorted(vals))}")
         sys.exit(0)
+
+    missing = [flag for flag, val in (("--type", args.type), ("--concept", args.concept))
+               if val is None]
+    if missing:
+        p.error(f"the following arguments are required: {', '.join(missing)}")
 
     if args.type not in TYPES:
         fail(f"invalid --type {args.type!r}. Valid: {' '.join(sorted(TYPES))}")
@@ -132,8 +150,10 @@ def main() -> None:
     if len(concept) > MAX_CONCEPT_LEN:
         fail(f"--concept too long ({len(concept)} > {MAX_CONCEPT_LEN})")
 
+    allowed = SIGNALS.get(args.type)
+    if args.signal is None and allowed is not None:
+        fail(f"--signal is required for --type {args.type!r}. Valid: {' '.join(sorted(allowed))}")
     if args.signal is not None:
-        allowed = SIGNALS.get(args.type)
         if allowed is None:
             fail(f"--signal is not meaningful for --type {args.type!r}; omit it")
         if args.signal not in allowed:
@@ -164,18 +184,39 @@ def main() -> None:
         return
 
     path = log_path()
-    is_new_concept = concept not in known_concepts()
+    history = concept_edges()
+    data = (line + "\n").encode("utf-8")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        # Append mode with a trailing newline per record keeps the file valid JSONL even if
-        # two writers interleave; single small writes are atomic enough in practice here.
-        with path.open("a", encoding="utf-8") as fh:
-            fh.write(line + "\n")
+        # One write(2) on an O_APPEND descriptor: the kernel seeks to end-of-file and writes in
+        # one step, so records from concurrent sessions land whole, one after another.
+        fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+        try:
+            written = os.write(fd, data)
+            closed_off = True
+            if written != len(data):
+                # Never leave a partial record without its newline: the next append would run
+                # into it and both lines would be unparseable. Ended here, only the fragment is.
+                try:
+                    os.write(fd, b"\n")
+                except OSError:
+                    closed_off = False
+        finally:
+            os.close(fd)
     except OSError as exc:
         fail(f"could not write {path}: {exc}")
+    if written != len(data):
+        state = ("the fragment was ended with a newline, so readers skip just that line"
+                 if closed_off else "the fragment could not be ended with a newline; check the log's last line")
+        fail(f"short write to {path} ({written} of {len(data)} bytes): the entry was NOT logged and "
+             f"{state}. Re-run once the cause (such as a full disk) is fixed.")
 
-    suffix = "  [new concept]" if is_new_concept else ""
+    suffix = "  [new concept]" if concept not in history else ""
     print(f"logged {args.type}/{concept}{suffix}")
+    if concept in history and args.edge != "none" and args.edge not in history[concept]:
+        before = " ".join(sorted(history[concept])) or "none"
+        print(f"note: first time {concept} is logged under edge {args.edge} "
+              f"(before: {before}); fine if intended, otherwise reuse its existing edge")
 
 
 if __name__ == "__main__":

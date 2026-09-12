@@ -2,7 +2,7 @@
 name: flag
 description: Records a concept in the global learning log to study later, and reports what is currently due. Use when the user says "flag this", "flag that", "add that to my learning list", "I want to learn that later", or asks what they should study, what is due, or what is in their learning queue. Also use when they say "I already know this" while being explained something, which records a calibration signal.
 when_to_use: Triggers on "flag this", "flag that for later", "note that down to learn", "what should I study", "what's due", "what's in my learning queue", "I already know this". Keep the response to one or two lines - this is a logging action during other work, not a teaching session.
-allowed-tools: Bash(${CLAUDE_SKILL_DIR}/../../bin/learn-log *), Bash(${CLAUDE_SKILL_DIR}/../../bin/learn-vocab *), Bash(${CLAUDE_SKILL_DIR}/../../bin/learn-queue *)
+allowed-tools: Bash(${CLAUDE_SKILL_DIR}/../../bin/learn-log *), Bash(${CLAUDE_SKILL_DIR}/../../bin/learn-vocab *), Bash(${CLAUDE_SKILL_DIR}/../../bin/learn-queue *), Bash(${CLAUDE_SKILL_DIR}/../../bin/learn-profile *)
 ---
 
 # Flag a concept / check the queue
@@ -33,10 +33,12 @@ Valid `edge`/`lang` values are the user's own living vocabulary — list them wi
 does not exist yet, `learn-log` will reject it and tell you the `learn-vocab add` command to create
 it.
 
-Infer `edge` and `lang` from context. Ask only if genuinely ambiguous — a question here defeats the
-purpose of a quick flag.
+Infer `edge` and `lang` from context. If the edge is ambiguous, read the profile's growth edges
+with `${CLAUDE_SKILL_DIR}/../../bin/learn-profile show` and prefer those slugs over the rest of the
+vocabulary. Ask only if it is still genuinely ambiguous — a question here defeats the purpose of a
+quick flag.
 
-Confirm in one line: `flagged false-sharing (hpc/cpp)`.
+Confirm in one line: `flagged lock-ordering (concurrency/java)`.
 
 ## "I already know this"
 
@@ -56,5 +58,5 @@ If they decline an offered deep-dive instead, use `--signal declined-deepdive`.
 ${CLAUDE_SKILL_DIR}/../../bin/learn-queue --due
 ```
 
-Report it as-is. Add `--pick 4` if they want a session's worth, interleaved. Offer `/learning:drill`
-to actually run it — but do not start drilling from this skill.
+Report it as-is. Add `--pick 4` if they want a session's worth, interleaved. Due items also come up
+on their own: `pair` and `guided` offer one recall question on a due concept when a session closes.

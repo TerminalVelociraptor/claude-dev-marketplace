@@ -13,7 +13,7 @@ import argparse
 import json
 import os
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -40,12 +40,24 @@ RECENT_WINDOW = 5
 # Concepts to interleave within one session.
 INTERLEAVE_MIN, INTERLEAVE_MAX = 2, 4
 
+# --- Calibration-evidence thresholds (--signals) ----------------------------------------
+# PLACEHOLDERS too, mirrored in shared/calibration-core.md. A crossing is evidence to raise
+# with the learner (suggest learning:profile-update), never an automatic level change.
+
+SIGNAL_WINDOW_DAYS = 14
+BASELINE_HIGHER_MIN = 2    # already-known / below-level calibration signals on one edge
+PITCHED_HIGH_MIN = 2       # above-level calibration signals on one edge
+PITCHED_HIGH_ESCAPES = 3   # ...or escapes on one edge
+RAISE_HITS_MIN = 3         # hits with zero misses on one edge,
+RAISE_CONCEPTS_MIN = 2     # spread across at least this many concepts
+
 SUCCESS_TYPES = {"hit"}
 FAILURE_TYPES = {"miss"}
 # An escape is a soft failure: evidence the material was pitched too hard, but not a wrong
 # answer, so it informs difficulty without resetting graduation progress.
 SOFT_FAILURE_TYPES = {"escape"}
 QUEUEING_TYPES = {"to-cover", "edge-confirmed"}
+BASELINE_SIGNALS = {"already-known", "below-level"}
 
 
 def log_path() -> Path:
@@ -137,16 +149,18 @@ def difficulty(events: list) -> str:
     if len(tail) == 2 and all(t in FAILURE_TYPES for t in tail):
         return "easier"
 
+    # Repeated escapes say the material is over-pitched even when answers eventually land.
+    # Checked before the no-outcome return so escapes alone still ease the next exercise,
+    # and regardless of hit rate: a hit reached via the escape valve is not mastery.
+    escapes = sum(1 for e in events[-RECENT_WINDOW * 2:] if e.get("type") in SOFT_FAILURE_TYPES)
+    if escapes >= 2:
+        return "easier"
+
     if not recent:
         return "hold"
 
     hits = sum(1 for e in recent if e["type"] in SUCCESS_TYPES)
     rate = hits / len(recent)
-
-    # Repeated escapes say the material is over-pitched even when answers eventually land.
-    escapes = sum(1 for e in events[-RECENT_WINDOW * 2:] if e.get("type") in SOFT_FAILURE_TYPES)
-    if escapes >= 2 and rate < 1.0:
-        return "easier"
 
     if rate < SUCCESS_TARGET:
         return "easier"
@@ -155,7 +169,19 @@ def difficulty(events: list) -> str:
     return "hold"
 
 
-def build(entries: list, project=None) -> list:
+def dominant(values: list) -> str:
+    """Most frequent non-`none` value, ties going to the one seen most recently."""
+    counts, last = Counter(), {}
+    for i, v in enumerate(values):
+        if v and v != "none":
+            counts[v] += 1
+            last[v] = i
+    if not counts:
+        return "none"
+    return max(counts, key=lambda v: (counts[v], last[v]))
+
+
+def build(entries: list, now: datetime, project=None) -> list:
     if project:
         entries = [e for e in entries if e.get("project") == project]
 
@@ -164,62 +190,80 @@ def build(entries: list, project=None) -> list:
         if e.get("concept"):
             by_concept[e["concept"]].append(e)
 
-    now = datetime.now(timezone.utc)
     rows = []
     for concept, events in by_concept.items():
         events.sort(key=lambda e: e.get("_dt") or datetime.min.replace(tzinfo=timezone.utc))
         stage, last_counted, graduated, reactivations = stage_and_due(events, now)
         due = due_at(stage, last_counted, graduated)
-        is_due = due is None or due <= now
+        reached = due is None or due <= now
         overdue_days = 0.0 if due is None else max(0.0, (now - due).total_seconds() / 86400)
 
         outcomes = [e for e in events if e.get("type") in SUCCESS_TYPES | FAILURE_TYPES]
         hits = sum(1 for e in outcomes if e["type"] in SUCCESS_TYPES)
         misses = len(outcomes) - hits
+        queued = any(e.get("type") in QUEUEING_TYPES for e in events)
+        # Only a concept someone queued, or actually practised, is schedulable. Calibration,
+        # skipped, taught or escape entries alone say "seen", not "study this".
+        eligible = queued or bool(outcomes)
 
+        edge_values = [e.get("edge", "none") for e in events]
+        lang_values = [e.get("lang", "none") for e in events]
         last = events[-1]
         rows.append({
             "concept": concept,
-            "edge": last.get("edge", "none"),
-            "lang": last.get("lang", "none"),
+            "edge": dominant(edge_values),
+            "edges": sorted({v for v in edge_values if v and v != "none"}),
+            "lang": dominant(lang_values),
+            "langs": sorted({v for v in lang_values if v and v != "none"}),
             "projects": sorted({e.get("project") for e in events if e.get("project")}),
             "stage": stage,
             "graduated": graduated,
             "reactivations": reactivations,
             "due": None if due is None else due.isoformat(timespec="seconds"),
-            "is_due": is_due,
+            "eligible": eligible,
+            "is_due": eligible and not graduated and reached,
+            "maint_due": graduated and reached,
             "overdue_days": round(overdue_days, 1),
             "hits": hits,
             "misses": misses,
             "escapes": sum(1 for e in events if e.get("type") in SOFT_FAILURE_TYPES),
             "difficulty": difficulty(events),
-            "queued": any(e.get("type") in QUEUEING_TYPES for e in events),
+            "queued": queued,
             "events": len(events),
             "last_seen": (last.get("_dt").isoformat(timespec="seconds") if last.get("_dt") else None),
+            "_events": events,
         })
 
-    # Most overdue first, then never-practised, then everything else.
-    rows.sort(key=lambda r: (not r["is_due"], -r["overdue_days"], r["stage"], r["concept"]))
+    # Active due (most overdue first), then maintenance due, then everything else.
+    rows.sort(key=lambda r: (not r["is_due"], not r["maint_due"], -r["overdue_days"],
+                             r["stage"], r["concept"]))
     return rows
 
 
-def pick(rows: list, n: int) -> list:
-    """Select concepts to interleave in one session.
+def split_values(values) -> set:
+    """Flatten repeated and comma-separated option values into one set."""
+    out = set()
+    for v in values or []:
+        out.update(x.strip() for x in v.split(",") if x.strip())
+    return out
 
-    Interleaving is the point: mix distinct concepts within a session rather than blocking
-    on one. Prefers due-and-active concepts, and spreads across edges where possible so the
-    mixing is genuine rather than three variations of the same idea.
-    """
-    active = [r for r in rows if not r["graduated"]]
-    candidates = [r for r in active if r["is_due"]] or active
 
-    picked, used_edges = [], set()
+def matches(row: dict, edges: set, langs: set) -> bool:
+    if edges and not (set(row["edges"]) or {"none"}) & edges:
+        return False
+    if langs and not (set(row["langs"]) or {"none"}) & langs:
+        return False
+    return True
+
+
+def spread(candidates: list, n: int, used_edges=()) -> list:
+    picked, used = [], set(used_edges)
     for row in candidates:
         if len(picked) >= n:
             break
-        if row["edge"] not in used_edges:
+        if row["edge"] not in used:
             picked.append(row)
-            used_edges.add(row["edge"])
+            used.add(row["edge"])
     for row in candidates:  # backfill if not enough distinct edges exist
         if len(picked) >= n:
             break
@@ -228,40 +272,168 @@ def pick(rows: list, n: int) -> list:
     return picked
 
 
+def pick(rows: list, n: int) -> list:
+    """Select concepts to interleave in one session.
+
+    Interleaving is the point: mix distinct concepts within a session rather than blocking
+    on one. Prefers due-and-active concepts, and spreads across edges where possible so the
+    mixing is genuine rather than three variations of the same idea. At most one due
+    maintenance check follows the active work, if there is room for it. When no active
+    concept is due, the remaining slots practise ahead on eligible active concepts.
+    """
+    due = [r for r in rows if r["is_due"]]
+    picked = spread(due, n)
+    maint = [r for r in rows if r["maint_due"]]
+    if maint and len(picked) < n:
+        picked.append(maint[0])
+    if not due:
+        ahead = [r for r in rows if r["eligible"] and not r["graduated"]]
+        picked += spread(ahead, n - len(picked), {r["edge"] for r in picked})
+    return picked
+
+
+def fmt_columns(head: list, cells: list) -> str:
+    widths = [max(len(str(c[i])) for c in [head, *cells]) for i in range(len(head))]
+
+    def line(values):
+        return " ".join(str(v).ljust(w) for v, w in zip(values, widths)).rstrip()
+
+    out = [line(head)]
+    out.append("-" * len(out[0]))
+    out.extend(line(c) for c in cells)
+    return "\n".join(out)
+
+
 def fmt_table(rows: list) -> str:
-    if not rows:
-        return "queue is empty — nothing logged yet"
-    head = f"{'concept':<32} {'edge':<11} {'lang':<7} {'stage':<6} {'h/m':<8} {'next':<12} {'difficulty'}"
-    out = [head, "-" * len(head)]
+    cells = []
     for r in rows:
-        if r["graduated"]:
-            stage = "grad"
-        else:
-            stage = f"{r['stage']}/{GRADUATION_SUCCESSES}"
+        stage = "grad" if r["graduated"] else f"{r['stage']}/{GRADUATION_SUCCESSES}"
         if r["is_due"]:
             nxt = "DUE" if not r["overdue_days"] else f"DUE +{r['overdue_days']:.0f}d"
+        elif r["maint_due"]:
+            nxt = "maint" if not r["overdue_days"] else f"maint +{r['overdue_days']:.0f}d"
+        elif not r["eligible"]:
+            nxt = "-"
         else:
             nxt = (r["due"] or "")[:10]
-        out.append(
-            f"{r['concept']:<32} {r['edge']:<11} {r['lang']:<7} {stage:<6} "
-            f"{str(r['hits']) + '/' + str(r['misses']):<8} {nxt:<12} {r['difficulty']}"
-        )
-    return "\n".join(out)
+        cells.append([r["concept"], r["edge"], r["lang"], stage,
+                      f"{r['hits']}/{r['misses']}", nxt, r["difficulty"]])
+    return fmt_columns(["concept", "edge", "lang", "stage", "h/m", "next", "difficulty"], cells)
+
+
+def public(row: dict) -> dict:
+    return {k: v for k, v in row.items() if not k.startswith("_")}
+
+
+def stats(rows: list, edges: set, langs: set) -> dict:
+    """Summary of the filtered rows.
+
+    Concept counts are per concept. Outcome, rate and escape counts use only the events logged
+    under the filtered edges/langs, so a concept logged under several edges contributes just
+    its in-filter events and the totals agree with per_edge.
+    """
+    per_edge = defaultdict(lambda: {"hits": 0, "misses": 0})
+    escapes = 0
+    for r in rows:
+        for e in r["_events"]:
+            edge = e.get("edge") or "none"
+            if (edges and edge not in edges) or (langs and (e.get("lang") or "none") not in langs):
+                continue
+            etype = e.get("type")
+            if etype in SOFT_FAILURE_TYPES:
+                escapes += 1
+            elif etype in SUCCESS_TYPES | FAILURE_TYPES:
+                per_edge[edge]["hits" if etype in SUCCESS_TYPES else "misses"] += 1
+    for counts in per_edge.values():
+        counts["success_rate"] = round(counts["hits"] / (counts["hits"] + counts["misses"]), 3)
+
+    total = len(rows)
+    grad = sum(1 for r in rows if r["graduated"])
+    hits = sum(c["hits"] for c in per_edge.values())
+    outcomes = hits + sum(c["misses"] for c in per_edge.values())
+    rate = (hits / outcomes) if outcomes else 0.0
+    return {
+        "concepts": total, "graduated": grad, "active": total - grad,
+        "due_now": sum(1 for r in rows if r["is_due"]),
+        "maintenance_due": sum(1 for r in rows if r["maint_due"]),
+        "outcomes": outcomes, "success_rate": round(rate, 3),
+        "success_target": SUCCESS_TARGET,
+        "on_target": abs(rate - SUCCESS_TARGET) <= 0.10 if outcomes else None,
+        "escapes": escapes,
+        "reactivations": sum(r["reactivations"] for r in rows),
+        "per_edge": {k: per_edge[k] for k in sorted(per_edge)},
+    }
+
+
+def signals(entries: list, now: datetime, days: int, edges: set, langs: set) -> list:
+    """Per-edge calibration evidence inside the window, with any threshold crossings."""
+    since = now - timedelta(days=days)
+    per = defaultdict(lambda: {"baseline_signals": 0, "above_level": 0, "escapes": 0,
+                               "hits": 0, "misses": 0, "_hit_concepts": set()})
+    for e in entries:
+        dt = e.get("_dt")
+        edge = e.get("edge") or "none"
+        if dt is None or dt < since or edge == "none":
+            continue
+        if (edges and edge not in edges) or (langs and (e.get("lang") or "none") not in langs):
+            continue
+        c = per[edge]
+        etype, signal = e.get("type"), e.get("signal")
+        if etype == "calibration" and signal in BASELINE_SIGNALS:
+            c["baseline_signals"] += 1
+        elif etype == "calibration" and signal == "above-level":
+            c["above_level"] += 1
+        elif etype in SOFT_FAILURE_TYPES:
+            c["escapes"] += 1
+        elif etype in SUCCESS_TYPES:
+            c["hits"] += 1
+            c["_hit_concepts"].add(e.get("concept"))
+        elif etype in FAILURE_TYPES:
+            c["misses"] += 1
+
+    result = []
+    for edge in sorted(per):
+        c = per[edge]
+        concepts = len(c.pop("_hit_concepts"))
+        crossings = []
+        if c["baseline_signals"] >= BASELINE_HIGHER_MIN:
+            crossings.append(("baseline may be higher",
+                              f"{c['baseline_signals']} already-known/below-level"))
+        if c["above_level"] >= PITCHED_HIGH_MIN or c["escapes"] >= PITCHED_HIGH_ESCAPES:
+            crossings.append(("pitched too high",
+                              f"{c['above_level']} above-level, {c['escapes']} escapes"))
+        if c["hits"] >= RAISE_HITS_MIN and c["misses"] == 0 and concepts >= RAISE_CONCEPTS_MIN:
+            crossings.append(("consider raising level",
+                              f"{c['hits']} hits, 0 misses across {concepts} concepts"))
+        result.append({"edge": edge, **c, "hit_concepts": concepts,
+                       "crossings": [{"signal": s, "evidence": ev} for s, ev in crossings]})
+    return result
 
 
 def main() -> None:
     p = argparse.ArgumentParser(prog="learn-queue", description="Study queue from the learning log.")
     p.add_argument("--json", action="store_true", help="machine-readable output")
-    p.add_argument("--due", action="store_true", help="only concepts due now")
+    p.add_argument("--due", action="store_true",
+                   help="only concepts due now; due maintenance checks follow, labeled maint")
     p.add_argument("--active", action="store_true", help="exclude graduated concepts")
     p.add_argument("--project", default=None, help="restrict to one project (default: global)")
-    p.add_argument("--edge", default=None, help="restrict to one growth edge")
+    p.add_argument("--edge", action="append", metavar="EDGE[,EDGE]",
+                   help="restrict to concepts seen under any of these edges (comma list or repeat)")
+    p.add_argument("--lang", action="append", metavar="LANG[,LANG]",
+                   help="restrict to concepts seen in any of these langs (comma list or repeat)")
     p.add_argument("--concept", default=None, help="full history of one concept")
     p.add_argument("--concepts", action="store_true", help="list known slugs, for reuse checking")
     p.add_argument("--pick", type=int, metavar="N", help=f"select N concepts to interleave "
                                                         f"({INTERLEAVE_MIN}-{INTERLEAVE_MAX})")
-    p.add_argument("--stats", action="store_true", help="summary across the whole log")
+    p.add_argument("--stats", action="store_true", help="summary across the (filtered) log")
+    p.add_argument("--signals", action="store_true",
+                   help="calibration evidence per edge; prints only threshold crossings (read-only)")
+    p.add_argument("--days", type=int, default=SIGNAL_WINDOW_DAYS,
+                   help=f"--signals window in days (default {SIGNAL_WINDOW_DAYS})")
+    p.add_argument("--all", action="store_true", help="with --signals, print counts for every edge")
     args = p.parse_args()
+    if args.days < 1:
+        p.error("--days must be at least 1")
 
     path = log_path()
     entries = read_log(path)
@@ -293,46 +465,66 @@ def main() -> None:
                 print("  ".join(bits))
         return
 
-    rows = build(entries, project=args.project)
+    now = datetime.now(timezone.utc)
+    edges, langs = split_values(args.edge), split_values(args.lang)
 
-    if args.stats:
-        total = len(rows)
-        grad = sum(1 for r in rows if r["graduated"])
-        due = sum(1 for r in rows if r["is_due"] and not r["graduated"])
-        outcomes = sum(r["hits"] + r["misses"] for r in rows)
-        hits = sum(r["hits"] for r in rows)
-        rate = (hits / outcomes) if outcomes else 0.0
-        stats = {
-            "concepts": total, "graduated": grad, "active": total - grad, "due_now": due,
-            "outcomes": outcomes, "success_rate": round(rate, 3),
-            "success_target": SUCCESS_TARGET,
-            "on_target": abs(rate - SUCCESS_TARGET) <= 0.10 if outcomes else None,
-            "escapes": sum(r["escapes"] for r in rows),
-            "reactivations": sum(r["reactivations"] for r in rows),
-        }
+    if args.signals:
+        scoped = [e for e in entries if not args.project or e.get("project") == args.project]
+        result = signals(scoped, now, args.days, edges, langs)
+        shown = result if args.all else [r for r in result if r["crossings"]]
         if args.json:
-            print(json.dumps(stats, indent=2))
+            print(json.dumps(shown, indent=2))
+        elif args.all:
+            head = ["edge", "known/below", "above", "escapes", "hits", "misses", "concepts",
+                    "crossings"]
+            cells = [[r["edge"], r["baseline_signals"], r["above_level"], r["escapes"], r["hits"],
+                      r["misses"], r["hit_concepts"],
+                      ", ".join(c["signal"] for c in r["crossings"]) or "-"] for r in shown]
+            print(fmt_columns(head, cells) if cells else
+                  f"no calibration evidence in the last {args.days} days")
+        elif shown:
+            for r in shown:
+                for c in r["crossings"]:
+                    print(f"{r['edge']}: {c['signal']} ({c['evidence']}, last {args.days}d)")
         else:
-            for k, v in stats.items():
-                print(f"{k:<16} {v}")
-            if outcomes and not stats["on_target"]:
-                direction = "too hard" if rate < SUCCESS_TARGET else "too easy"
-                print(f"\nsuccess rate is off target ({direction}) — consider retuning "
-                      f"SUCCESS_TARGET or exercise difficulty")
+            print(f"no calibration thresholds crossed (last {args.days} days)")
         return
 
-    if args.edge:
-        rows = [r for r in rows if r["edge"] == args.edge]
+    rows = [r for r in build(entries, now, project=args.project) if matches(r, edges, langs)]
+
+    if args.stats:
+        result = stats(rows, edges, langs)
+        if args.json:
+            print(json.dumps(result, indent=2))
+            return
+        if not rows:
+            print("no concepts match the filter")
+            return
+        for k, v in result.items():
+            if k != "per_edge":
+                print(f"{k:<16} {v}")
+        print("per_edge")
+        for edge, c in result["per_edge"].items():
+            print(f"  {edge:<14} {c['hits']}/{c['misses']}  {c['success_rate']}")
+        if result["outcomes"] and not result["on_target"]:
+            direction = "too hard" if result["success_rate"] < SUCCESS_TARGET else "too easy"
+            print(f"\nsuccess rate is off target ({direction}) — consider retuning "
+                  f"SUCCESS_TARGET or exercise difficulty")
+        return
+
     if args.active:
         rows = [r for r in rows if not r["graduated"]]
-    if args.due:
-        rows = [r for r in rows if r["is_due"] and not r["graduated"]]
-
     if args.pick:
-        n = max(INTERLEAVE_MIN, min(args.pick, INTERLEAVE_MAX))
-        rows = pick(rows, n)
+        # pick() puts due work first and practises ahead only when nothing is due, so --due
+        # must not pre-narrow its candidates.
+        rows = pick(rows, max(INTERLEAVE_MIN, min(args.pick, INTERLEAVE_MAX)))
+    elif args.due:
+        rows = [r for r in rows if r["is_due"]] + [r for r in rows if r["maint_due"]]
 
-    print(json.dumps(rows, indent=2) if args.json else fmt_table(rows))
+    if args.json:
+        print(json.dumps([public(r) for r in rows], indent=2))
+    else:
+        print(fmt_table(rows) if rows else "no concepts match the filter")
 
 
 if __name__ == "__main__":

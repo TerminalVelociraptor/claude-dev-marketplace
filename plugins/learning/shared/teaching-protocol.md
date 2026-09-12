@@ -54,8 +54,10 @@ When they say "just tell me" or equivalent:
 - **Otherwise** → offer ONE more hint and ask once whether they still want the answer. If they say
   yes (or repeat themselves), answer in full. **Ask only once. Never twice.**
 
-**Always log the escape** — `bin/learn-log --type escape`. Frequent escapes on one concept mean the
-material is pitched too hard, which the queue uses to make the next exercise easier.
+**Always log the escape** —
+`${CLAUDE_SKILL_DIR}/../../bin/learn-log --type escape --concept <slug>`. Frequent escapes on one
+concept mean the material is pitched too hard, which the queue uses to make the next exercise
+easier.
 
 ## Rule 5 — Log as you go
 
@@ -69,6 +71,7 @@ session ends abruptly.
 | They confirmed a growth-edge gap is real | `edge-confirmed` |
 | They flagged something to learn later | `to-cover` |
 | They said they already knew it / declined | `calibration` + `signal` |
+| The pitch was below their level / above it | `calibration` + `signal=below-level` / `above-level` |
 | Predicted or answered correctly | `hit` |
 | Predicted or answered wrongly | `miss` |
 | Used the escape valve | `escape` |
@@ -80,15 +83,18 @@ The log is global. When the current concept matches something logged in another 
 explicitly: *"this is the same false sharing as in <project> last week."* Cross-context retrieval
 is where transfer actually happens, and it is the main payoff of keeping one global log.
 
-Check with `bin/learn-queue --concept <slug>` when something feels familiar.
+Check with `${CLAUDE_SKILL_DIR}/../../bin/learn-queue --concept <slug>` when something feels
+familiar.
 
 ## Rule 7 — Never assert an unverified measurable claim
 
 For anything factual and checkable — does this vectorize, is this actually faster, is this
-complexity right, does this allocate — **run it or check it.** Compile it, benchmark it, read the
-disassembly, count the allocations.
+complexity right, does this allocate — **run it or check it with the project's own tooling**: the
+build, the tests, a benchmark such as `cargo bench`, a profiler, the disassembly. Show the output.
 
-If you cannot verify it, say plainly that it is unverified, and do not log it as `taught`.
+If there is no verification path here, prefer claims the learner's own build or tests can confirm.
+Otherwise say plainly that it is unverified, do not log it as `taught`, and do not switch to a
+language the profile marks `role: analogy` to get something checkable without asking first.
 
 An unverified performance claim encoded into the log is the worst outcome this system can produce:
 it is wrong, it is confidently stated, and spaced repetition will then drill it in. Token cost is
