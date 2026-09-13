@@ -18,6 +18,21 @@
       "description": "Turns Claude Code into an interactive coding teacher for deliberate practice. Two session modes over a shared teaching core, with a global spaced-repetition log.",
       "category": "learning",
       "tags": ["learning", "teaching", "deliberate-practice", "spaced-repetition"]
+    },
+    {
+      "name": "cost-estimate",
+      "source": "./plugins/cost-estimate",
+      "description": "Prints an estimated dollar cost after every Claude Code turn (and subagent), from a fixed per-model pricing table and the transcript's token usage.",
+      "category": "productivity",
+      "tags": ["cost", "hooks", "tokens", "pricing"]
+    },
+    {
+      "name": "model-picker",
+      "source": "./plugins/model-picker",
+      "displayName": "Model Picker",
+      "description": "Recommends an appropriate Claude or GPT model and effort level for an upcoming task.",
+      "category": "productivity",
+      "tags": ["models", "model-selection", "effort", "cost"]
     }
   ]
 }

@@ -1,0 +1,9 @@
+{
+  "name": "cost-estimate",
+  "description": "Prints an estimated dollar cost after every Claude Code turn (and subagent), from a fixed per-model pricing table and the transcript's token usage.",
+  "version": "0.1.0",
+  "author": {
+    "name": "David Engel",
+    "email": "drengel88@gmail.com"
+  }
+}
