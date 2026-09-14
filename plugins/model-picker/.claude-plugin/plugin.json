@@ -2,7 +2,7 @@
   "name": "model-picker",
   "displayName": "Model Picker",
   "description": "Recommends an appropriate Claude or GPT model and effort level for an upcoming task.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": {
     "name": "David Engel",
     "email": "drengel88@gmail.com"
