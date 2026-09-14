@@ -1,9 +1,0 @@
-{
-  "name": "spec-toolkit",
-  "description": "Author and evaluate project design/architecture specifications against a rubric derived from ISO/IEC/IEEE 42010, arc42, Architecture Decision Records, and ISO/IEC 25010.",
-  "version": "0.3.0",
-  "author": {
-    "name": "David Engel",
-    "email": "drengel88@gmail.com"
-  }
-}
