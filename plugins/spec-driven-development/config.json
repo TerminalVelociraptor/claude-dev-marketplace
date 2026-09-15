@@ -1,0 +1,16 @@
+{
+  "project_paths": {
+    "_comment": "Relative to the root of the project the plugin is used in.",
+    "overview": "docs/01-overview.md",
+    "vision_draft": "docs/drafts/vision.md"
+  },
+  "plugin_paths": {
+    "_comment": "Relative to this plugin's root directory.",
+    "overview_template": "templates/01-overview.md"
+  },
+  "vision": {
+    "word_limit": { "normal": 500, "tiny": 150 },
+    "tiny_marker": "<!-- size: tiny -->",
+    "priorities_min_items": 2
+  }
+}

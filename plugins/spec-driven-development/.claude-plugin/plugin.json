@@ -1,0 +1,15 @@
+{
+  "name": "spec-driven-development",
+  "description": "Interview skills, templates, checks and reviewers for a human-in-the-loop, spec-driven process for solo projects, starting with Stage 1 (Vision & Scope).",
+  "version": "0.1.0",
+  "author": {
+    "name": "David Engel",
+    "email": "drengel88@gmail.com"
+  },
+  "keywords": [
+    "specs",
+    "planning",
+    "vision",
+    "spec-driven-development"
+  ]
+}

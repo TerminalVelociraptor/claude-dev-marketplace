@@ -33,6 +33,13 @@
       "description": "Tools to create a roadmap from a Claude plan with multiple work units, resume the work on fresh agents, and track execution.",
       "category": "productivity",
       "tags": ["planning", "execution", "checkpoints", "tracking"]
+    },
+    {
+      "name": "spec-driven-development",
+      "source": "./plugins/spec-driven-development",
+      "description": "Interview skills, templates, checks and reviewers for a human-in-the-loop, spec-driven process for solo projects, starting with Stage 1 (Vision & Scope).",
+      "category": "productivity",
+      "tags": ["specs", "planning", "vision", "spec-driven-development"]
     }
   ]
 }
