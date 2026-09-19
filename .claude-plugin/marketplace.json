@@ -7,11 +7,6 @@
   "description": "Personal Claude Code toolkits for specification work and deliberate technical practice.",
   "plugins": [
     {
-      "name": "spec-toolkit",
-      "source": "./plugins/spec-toolkit",
-      "description": "Tools for authoring and evaluating project design/architecture specs against a peer-established rubric."
-    },
-    {
       "name": "learning",
       "source": "./plugins/learning",
       "description": "Turns Claude Code into an interactive coding teacher for deliberate practice. Two session modes over a shared teaching core, with a global spaced-repetition log.",
@@ -33,11 +28,11 @@
       "tags": ["cost", "hooks", "tokens", "pricing", "statusline", "rate-limits"]
     },
     {
-      "name": "handoff",
-      "source": "./plugins/handoff",
-      "description": "Writes a self-contained session brief to a local Markdown file so you can /clear and resume in a fresh agent.",
+      "name": "roadmap",
+      "source": "./plugins/roadmap",
+      "description": "Tools to create a roadmap from a Claude plan with multiple work units, resume the work on fresh agents, and track execution.",
       "category": "productivity",
-      "tags": ["handoff", "context", "session"]
+      "tags": ["planning", "execution", "checkpoints", "tracking"]
     }
   ]
 }

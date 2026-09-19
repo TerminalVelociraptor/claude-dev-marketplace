@@ -1,0 +1,15 @@
+{
+  "name": "roadmap",
+  "description": "Tools to create a roadmap from a Claude plan with multiple work units, resume the work on fresh agents, and track execution.",
+  "version": "0.1.0",
+  "author": {
+    "name": "David Engel",
+    "email": "drengel88@gmail.com"
+  },
+  "keywords": [
+    "planning",
+    "execution",
+    "checkpoints",
+    "tracking"
+  ]
+}
