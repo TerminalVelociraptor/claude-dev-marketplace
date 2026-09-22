@@ -7,10 +7,5 @@
   "plugin_paths": {
     "_comment": "Relative to this plugin's root directory.",
     "overview_template": "templates/01-overview.md"
-  },
-  "vision": {
-    "word_limit": { "normal": 500, "tiny": 150 },
-    "tiny_marker": "<!-- size: tiny -->",
-    "priorities_min_items": 2
   }
 }

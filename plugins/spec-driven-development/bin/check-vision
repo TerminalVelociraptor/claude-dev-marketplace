@@ -1,0 +1,198 @@
+#!/usr/bin/env python3
+"""Check a project's Vision section against the plugin's overview template.
+
+Reports only what needs no judgment: headings the template has and the document doesn't, headings
+left blank, and a throwaway draft still present once the vision is written. Anything that needs a
+reading of what the words mean belongs to `/vision review`.
+
+Headings come from the template and paths from config.json, so neither is restated here.
+
+Exit status: 0 no findings, 1 findings, 2 usage, config or template problem.
+"""
+
+import argparse
+import json
+import re
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+
+PLUGIN_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_CONFIG = PLUGIN_ROOT / "config.json"
+COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+
+REQUIRED_CONFIG_KEYS = (
+    ("project_paths", "overview"),
+    ("project_paths", "vision_draft"),
+    ("plugin_paths", "overview_template"),
+)
+
+
+class ConfigError(Exception):
+    pass
+
+
+class TemplateError(Exception):
+    pass
+
+
+@dataclass
+class Finding:
+    check: str
+    message: str
+    line: int = None
+
+
+@dataclass
+class Section:
+    name: str
+    line: int
+    lines: list = field(default_factory=list)   # (line number, text, inside a code fence)
+
+
+def drop_comment_keys(value):
+    """config.json carries "_comment" keys because JSON has no comments."""
+    if isinstance(value, dict):
+        return {k: drop_comment_keys(v) for k, v in value.items() if not k.startswith("_")}
+    return value
+
+
+def load_config(path):
+    try:
+        config = drop_comment_keys(json.loads(Path(path).read_text()))
+    except OSError as exc:
+        raise ConfigError(f"{path}: {exc.strerror}") from None
+    except json.JSONDecodeError as exc:
+        raise ConfigError(f"{path}: not valid JSON ({exc})") from None
+    for keys in REQUIRED_CONFIG_KEYS:
+        node = config
+        for key in keys:
+            if not isinstance(node, dict) or key not in node:
+                raise ConfigError(f"{path}: missing key {'.'.join(keys)}")
+            node = node[key]
+    return config
+
+
+def split_sections(text):
+    """Split Markdown into `## ` sections, ignoring headings inside code fences."""
+    sections, current, in_fence = [], None, False
+    for number, line in enumerate(text.split("\n"), 1):
+        marker = line.lstrip().startswith(("```", "~~~"))
+        inside = in_fence or marker
+        if marker:
+            in_fence = not in_fence
+        if not inside and line.startswith("## "):
+            current = Section(line[3:].strip(), number)
+            sections.append(current)
+            continue
+        if current is not None:
+            current.lines.append((number, line, inside))
+    return sections
+
+
+def split_headings(section):
+    """[(name, line number, body lines)] for each `### ` heading in one section."""
+    blocks = []
+    for number, line, inside in section.lines:
+        if not inside and line.startswith("### "):
+            blocks.append((line[4:].strip(), number, []))
+        elif blocks:
+            blocks[-1][2].append(line)
+    return blocks
+
+
+def load_template(path):
+    """(section name, heading names in order), from the first `## ` section that has headings."""
+    try:
+        text = Path(path).read_text()
+    except OSError as exc:
+        raise TemplateError(f"{path}: {exc.strerror}") from None
+    for section in split_sections(text):
+        blocks = split_headings(section)
+        if blocks:
+            return section.name, [name for name, _, _ in blocks]
+    raise TemplateError(f"{path}: no '## ' section with '### ' headings")
+
+
+def answered(body_lines):
+    """True when something other than the template's prompt comments is written here."""
+    return bool(COMMENT_RE.sub("", "\n".join(body_lines)).strip())
+
+
+def check_document(text, section_name, headings, draft_path, is_draft):
+    target = next((s for s in split_sections(text) if s.name == section_name), None)
+    if target is None:
+        return [Finding("missing-vision", f"'## {section_name}' section is missing")]
+
+    blocks = split_headings(target)
+    present = {name for name, _, _ in blocks}
+    findings = [Finding("empty-heading", f"'### {name}' is empty", line)
+                for name, line, body in blocks if name in headings and not answered(body)]
+    findings += [Finding("missing-heading", f"'### {name}' is required", target.line)
+                 for name in headings if name not in present]
+
+    written = {name for name, _, body in blocks if answered(body)}
+    if not is_draft and set(headings) <= written and draft_path.exists():
+        findings.append(Finding(
+            "leftover-draft",
+            f"{draft_path} still exists; delete it once the Vision section is written"))
+    return findings
+
+
+def status(doc_path, section_name):
+    """One word for the skill: missing, empty or filled."""
+    if not doc_path.exists():
+        return "missing"
+    target = next((s for s in split_sections(doc_path.read_text()) if s.name == section_name), None)
+    if target is None:
+        return "empty"
+    return "filled" if any(answered(body) for _, _, body in split_headings(target)) else "empty"
+
+
+def report(doc_path, findings):
+    for finding in sorted(findings, key=lambda f: f.line or 0):
+        where = f"{doc_path}:{finding.line}" if finding.line else str(doc_path)
+        print(f"{where}: error [{finding.check}] {finding.message}")
+    print(f"{len(findings)} error(s)" if findings else "OK")
+    return 1 if findings else 0
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Check a Vision section against the plugin's overview template.")
+    parser.add_argument("--root", type=Path, default=Path("."),
+                        help="project root (default: the current directory)")
+    parser.add_argument("--draft", action="store_true",
+                        help="check the interview draft instead of the overview")
+    parser.add_argument("--status", action="store_true",
+                        help="print missing, empty or filled, and exit")
+    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG,
+                        help="config file (default: the plugin's config.json)")
+    args = parser.parse_args(argv)
+
+    try:
+        config = load_config(args.config)
+        section_name, headings = load_template(
+            PLUGIN_ROOT / config["plugin_paths"]["overview_template"])
+    except (ConfigError, TemplateError) as exc:
+        print(f"check-vision: {exc}", file=sys.stderr)
+        return 2
+
+    root = args.root.expanduser().resolve()
+    draft_path = root / config["project_paths"]["vision_draft"]
+    doc_path = draft_path if args.draft else root / config["project_paths"]["overview"]
+
+    if args.status:
+        print(status(doc_path, section_name))
+        return 0
+
+    if not doc_path.exists():
+        print(f"check-vision: {doc_path} does not exist", file=sys.stderr)
+        return 2
+
+    return report(doc_path, check_document(
+        doc_path.read_text(), section_name, headings, draft_path, args.draft))
+
+
+if __name__ == "__main__":
+    sys.exit(main())

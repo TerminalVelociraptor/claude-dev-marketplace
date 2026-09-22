@@ -15,7 +15,7 @@ Add a row when a new file becomes the owner of a fact. Everything else reads the
 | Fact | Owner |
 |---|---|
 | Overview headings, their order, and their comment prompts | `templates/01-overview.md` |
-| Word limits, tiny marker, Priorities minimum items | `config.json` (`vision`) |
+| Deterministic checks and their finding IDs | `bin/check-vision` |
 | Paths to docs in the target project | `config.json` (`project_paths`) |
 | Paths to files inside this plugin, such as the template | `config.json` (`plugin_paths`) |
 
