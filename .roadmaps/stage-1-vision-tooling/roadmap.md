@@ -2,20 +2,20 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: none_
-_Updated: 2026-09-21 - U1 closed_
+_Updated: 2026-09-21 - U2 closed_
 
 ## State
 | Unit | Name | State | Depends on |
 |---|---|---|---|
 | U1 | `bin/check-vision` and its tests | done | - |
-| U2 | the `/vision` skill | not started | U1 |
+| U2 | the `/vision` skill | done | U1 |
 | U3 | README and a real run | not started | U1, U2 |
 
 States: `not started` / `in progress` / `done`
 
 ## Amendments
 _Append-only. Where execution diverged from the frozen plan. `none.` until one occurs._
-none.
+- U2: verified the `plan.md:791` "new session" review requirement with a fresh subagent (no memory of the interview) instead of an actual new Claude Code session, since this session couldn't spawn one — the subagent read only `SKILL.md`'s Review section and the overview file, same isolation the plan is testing for.
 
 ---
 
@@ -35,33 +35,15 @@ none.
 
 ### U2 - the `/vision` skill
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 0h 30m
 
-**Executes:** `plan.md:614-784 § U2 — the /vision skill`
-
-**Acceptance:** `plan.md:786-796 § U2 — the /vision skill ➔ Done when`
-
-**Scope:** `plan.md:25-31 § What we are NOT building`
-
-**Terms:** `plan.md:39-40 § Terms ➔ Plugin root`
-
-**Conventions:** `plan.md:134-146 § Conventions`
-
-**Cross-cutting gotchas:** `plan.md:150-161 § Cross-cutting gotchas`
-
-**Stop-and-ask:** `plan.md:165-169 § Stop-and-ask triggers`
-
-**Verification:** `plan.md:871-887 § Verification`
-
-**Open decisions:** `plan.md:892-894 § Decisions left for you ➔ Existing-vision behaviour and Assumed items`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: Built as `plan.md:626-768` specifies, content copied verbatim. Acceptance (`plan.md:786-796`) passed on all five points: Setup on an empty temp project filled the title and left prompts intact (`missing`→`empty`); a real interview (toy idea: a tea-steeping timer) produced a draft `check-vision --draft` reported `OK` on; a fresh subagent with no memory of the interview ran Review and printed **Structure** `OK` / **Judgment** `No findings.`; a hand-written flawed overview produced 3 findings including both required ones ("probably on Postgres", "should feel fast"), and a clean one produced exactly `No findings.`; `grep -c '^### ' skills/vision/SKILL.md` → 2, the skill's own subheadings, not the template's eight.
+- Files: Created `plugins/spec-driven-development/skills/vision/SKILL.md` only. `bin/check-vision`, `config.json` and `templates/01-overview.md` untouched, as required. U3 documents and exercises this file.
+- Gotchas: none.
+- Decisions made and why: The "existing vision" behaviour (`plan.md:892` open decision) was confirmed with the user as "ask, as drafted" — already the plan's Content wording, so no file change resulted, just confirmation. See also the Amendments entry on how the fresh-session requirement was tested.
 
 ---
 
@@ -99,10 +81,10 @@ none.
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U1, closed this session.
-- Why stopped: U1 complete and committed; next unit not yet begun.
+- Written against: U2, closed this session.
+- Why stopped: U2 complete and committed; next unit not yet begun.
 - Mid-edit when stopped: nothing.
 - Open question awaiting an answer: none.
 - Working agreements: Commit at `start`, and approval to commit when closing units as well - stated by the user in reply to whether `start` should commit ("Commit at the start, and you have approval to commit when closing stages as well.").
-- Next action: `/roadmap begin U2`
-- Environment: project root `/home/david/agent-tools/plugin-marketplace`; branch `spec-driven-development_stage-1`; HEAD `5706e1c` before this session's commit.
+- Next action: `/roadmap begin U3`
+- Environment: project root `/home/david/agent-tools/plugin-marketplace`; branch `spec-driven-development_stage-1`; HEAD `be559e6` before this session's commit.
