@@ -59,6 +59,9 @@ LEGACY_STATE_ROOT = os.path.expanduser("~/.claude/cost-estimate-state")
 # The status line is debounced 300ms after each assistant message; give it
 # this long to catch up with the turn's final message before giving up on it.
 SNAPSHOT_WAIT_SECONDS = 1.5
+# Claude Code writes transcripts asynchronously, so the final response may not
+# be on disk yet when Stop/SubagentStop fires; wait up to this long for it.
+FLUSH_WAIT_SECONDS = 2.0
 
 
 def load_pricing():
@@ -80,6 +83,41 @@ def read_transcript_lines(transcript_path):
                     lines.append(line)
     except FileNotFoundError:
         pass
+    return lines
+
+
+def message_text(record):
+    content = (record.get("message") or {}).get("content")
+    if isinstance(content, str):
+        return content
+    return "".join(b.get("text", "") for b in content or [] if isinstance(b, dict) and b.get("type") == "text")
+
+
+def has_final_message(lines, start, sidechain, final_text):
+    for line in reversed(lines[start:]):
+        try:
+            d = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if (d.get("type") == "assistant" and bool(d.get("isSidechain")) == sidechain
+                and message_text(d).strip() == final_text):
+            return True
+    return False
+
+
+def read_transcript_when_flushed(transcript_path, start, sidechain, event):
+    """read_transcript_lines, but first wait up to FLUSH_WAIT_SECONDS for the
+    hook's last_assistant_message to reach the transcript. (Measured: it lands
+    about 0.1s into the wait.) Internal subagents never create their transcript
+    file, so a missing file isn't waited for."""
+    if not os.path.exists(transcript_path):
+        return []
+    final_text = (event.get("last_assistant_message") or "").strip()
+    deadline = time.time() + FLUSH_WAIT_SECONDS
+    lines = read_transcript_lines(transcript_path)
+    while final_text and not has_final_message(lines, start, sidechain, final_text) and time.time() < deadline:
+        time.sleep(0.1)
+        lines = read_transcript_lines(transcript_path)
     return lines
 
 
@@ -348,10 +386,10 @@ def main():
         agent_transcript = event.get("agent_transcript_path")
         if not agent_transcript:
             return
-        lines = read_transcript_lines(os.path.expanduser(agent_transcript))
         # Per-agent cursor: a resumed subagent fires SubagentStop again on the same file.
         agent_cursor_path = os.path.join(sdir, f"agent_cursor_{event.get('agent_id', 'unknown')}")
         agent_cursor = read_cursor(agent_cursor_path)
+        lines = read_transcript_when_flushed(os.path.expanduser(agent_transcript), agent_cursor, True, event)
         sub = sum_usage(lines, pricing, sidechain=True, start=agent_cursor)
         with open(agent_cursor_path, "w") as f:
             f.write(str(len(lines)))
@@ -369,8 +407,8 @@ def main():
         return
 
     if hook_event == "Stop":
-        lines = read_transcript_lines(transcript_path)
         main_cursor = read_cursor(main_cursor_path)
+        lines = read_transcript_when_flushed(transcript_path, main_cursor, False, event)
         session_start = open(session_start_path).read().strip() if os.path.exists(session_start_path) else None
         main_usage = sum_usage(lines, pricing, sidechain=False, start=main_cursor, min_timestamp=session_start)
         with open(main_cursor_path, "w") as f:
