@@ -1,18 +1,18 @@
 # Project Documents
 
-What each document in a project contains, why, and which documents it links back to. The chain runs from an idea to tasks: Vision, System and Open decisions → Component specs → Slices → Tasks. ADRs sit alongside: a decision that needs replacing gets a new ADR that supersedes the old one, which is never edited.
+What each document in a project contains, why, and which documents it links back to. The chain runs from an idea to tasks: Vision, System and Open decisions → Component specs → Slices → Tasks. ADRs sit alongside.
 
-Each entry opens with one sentence on what the document is for, where it lives, and its size. Then:
+Each entry opens with what the document is for, then where it lives and its size. After that:
 - **Contains:** the items the document holds, each with *why* it's there: the decision it forces or the mistake it prevents. An item with no clear why doesn't belong, and nothing outside this list belongs in the document.
 - **Links back to:** the documents it draws on.
 
 **Link, don't copy.** A document links to what it draws on and never restates it. Derived files are the only copies, and they're regenerated from their source.
 *Why:* a fact stated once can't disagree with itself.
 
-**Keep it short.** Each entry gives a size. A document well over it is usually doing another level's job.
+**Keep it short.** Each document you write gives a size. A document well over it is usually doing another document's job.
 *Why:* long documents are tedious to review, and more text doesn't make agents follow it any better.
 
-Each level has a "not" item: Vision's Non-goals, System's Not in the system, a component's Doesn't do, and a slice's and a task's Out of scope. It lists only what a reader might expect or an agent might add, each with where it lives instead or why not.
+These documents have a "not" item: Vision's Non-goals, System's Not in the system, a component's Doesn't do, and a slice's and a task's Out of scope. It lists only what a reader might expect or an agent might add, each with where it lives instead or why not.
 
 ## What this process is not
 - **Not implementation.** The chain ends at Tasks. Building a task happens in your own workflow.
@@ -21,7 +21,7 @@ Each level has a "not" item: Vision's Non-goals, System's Not in the system, a c
   *Why:* tracked state needs a rule for every change of state, and those rules need patches.
 - **Not automation.** A skill runs when you run it, on what you name. Nothing fires when a PR merges or a slice finishes.
   *Why:* triggers need tracked state and tie skills to each other.
-- **Not a check on you.** It checks documents. How and when you work, and where you keep your own notes, is yours.
+- **Not a check on you.** It checks documents. How and when you work is yours.
 
 ---
 
@@ -35,13 +35,13 @@ What you're building, for whom and why, and how much of it this version includes
   *Why:* anchors every later trade-off. A specific story keeps the problem concrete enough to check the MVP against; a general statement fits any solution. "For whom" sets the scale: just you vs. the public changes hosting, security and polish. Today's workaround is the bar the MVP has to beat.
 - **Goals:** a handful of outcomes for this version, each with a check you could actually run.
   *Why:* defines success, and the checks tell you when you're done rather than still adding. Goals say what success looks like; the MVP says the smallest thing that achieves it. When the appetite forces cuts, the goals say what has to survive.
-- **MVP:** the first version you'd use, in user terms: running end to end, thinly. Plus its appetite: how much time you're willing to spend on it.
-  *Why:* the scope line for the first version; everything outside it waits. The appetite turns "small enough to finish" into a number you set up front, and makes scope, not time, the thing that gives.
+- **MVP:** the smallest thing you'd use, in user terms: running end to end, thinly. Plus its appetite: how much time you're willing to spend on it.
+  *Why:* the scope line for this version; everything outside it waits. The appetite turns "small enough to finish" into a number you set up front, and makes scope, not time, the thing that gives.
 - **Non-goals:** what you're not building in this version, including things you want eventually.
   *Why:* the strongest single guard against scope creep and over-engineering, for you and for agents.
 - **Priorities:** 2–4 things ranked for when they conflict: qualities (e.g. reliability over speed), or something you want to learn by building this (e.g. learning Rust over shipping fast). Features aren't ranked.
   *Why:* settles trade-offs in the System section and ADRs without asking you again. Left alone, agents make their own trade-offs, usually toward more features and more flexibility. A learning priority is the one legitimate reason to choose unfamiliar technology.
-- **Constraints:** what is fixed and not yours to choose: things you own or must work with, rules you hold to, money limits (e.g. free tiers only).
+- **Constraints:** what is fixed and not yours to choose: things you own or must work with, rules you hold to (e.g. no cloud accounts), money limits (e.g. free tiers only).
   *Why:* stops the design choosing something you can't use, and separates what's fixed from what's still a choice.
 
 **Links back to:** nothing. It's the top of the chain and starts from your idea.
@@ -57,9 +57,9 @@ What the parts are, what each is responsible for, and how they connect.
 - **Components:** each with a one-sentence role, what it owns, where it runs (conceptually: your machine, an always-on server, a phone, the user's browser; no hosts or products), and, if the user touches it, through what (a page, a command, a report).
   *Why:* the map you and agents navigate by. "Owns" stops two components doing the same job; a role that needs "and" is probably two components. Where it runs catches mismatches that break the design, such as a scraper that must run daily when the MVP only runs on your laptop. "Through what" shows where the user meets the system, which is where every slice's outcome shows up.
 - **Contracts:** who provides what to whom, in plain language (e.g. "Scraper provides events: venue, date, artists, source URL").
-  *Why:* the seams each component can rely on, agreed before anyone picks a format. Component specs make them concrete later.
+  *Why:* the seams each component can rely on, agreed before anyone picks a format.
 - **Shared data model:** only entities that cross a component boundary; for each, what it means (only fields that could be misread) and its one owner.
-  *Why:* catches duplication (an entity wanting two owners) and coupling (a component needing much of another's data) early, and settles the meanings agents would otherwise guess, such as what makes two records the same thing.
+  *Why:* catches duplication (an entity wanting two owners) and coupling (a component needing much of another's data) early, and settles the meanings agents would otherwise guess, such as whether an event's date is local time.
 - **External systems:** APIs, scraped sites, devices; for each, what still works and what the user sees when it fails.
   *Why:* the dependencies you don't control, and the likeliest to break. What the user sees when one fails is a design choice; left open, it gets made in code.
 - **MVP trace:** the MVP walked through the components, each step with an owner.
@@ -67,22 +67,18 @@ What the parts are, what each is responsible for, and how they connect.
 - **Not in the system:** structure a reader or agent might expect that deliberately isn't there (e.g. no user accounts, no plugin mechanism, no configuration layer).
   *Why:* System is where agents add generality, such as a layer for swapping providers or settings nobody asked for. Saying what isn't there stops it at the level that decides structure.
 
-The context diagram at the end of this section is a derived file (see Derived files). You don't write it.
-
 **Links back to:** Vision; Open decisions and ADRs, where a part depends on something unsettled or decided there.
 
 ---
 
 ## Open decisions
 
-What hasn't been decided or checked yet, and what would settle it.
+Questions that need deciding or checking, what would settle each, and a link to each answer.
 `docs/01-overview.md`, `## Open decisions` section, after System. One line per question.
 
 **Contains:**
-- **Questions:** one line each: a choice not made yet (a technology you mentioned, where something runs) or a risk nobody has checked (feasibility, data, cost); a link to where it came from; and, if answering it needs a spike (a task that tries something out), what result would settle it.
-  *Why:* keeps technology preferences and guesses out of Vision and System without losing them. Agents fill gaps confidently; this marks where the gaps are. What would settle it tells a spike when it's done.
-- Only questions still open. A settled question lives in its ADR, or in the document it concerns.
-  *Why:* the list shows at a glance what's still unknown, which it can't if it also holds answers.
+- **Questions:** a choice not made yet (a technology you mentioned, where something runs) or a risk nobody has checked (feasibility, data, cost); a link to where it came from (a document, or you); if answering it needs a spike (a task that tries something out), what result would settle it; and, for a settled question, a link to its answer: its ADR, or the document it concerns.
+  *Why:* keeps technology preferences and guesses out of Vision and System without losing them. Agents fill gaps confidently; this marks where the gaps are. What would settle it tells a spike when it's done. A settled question keeps its line, so nothing that links to it breaks; a question with no answer link is still open.
 
 **Links back to:** the document each question came from.
 
@@ -94,12 +90,12 @@ Why a decision was made that someone would ask "why?" about, and what was reject
 `docs/decisions/NNNN-<title>.md`, one file per decision. Half a page.
 
 **Contains:**
-- **Context:** the question it settles, stated in its own words, and the priorities and constraints it relies on, each named and linked (e.g. "relies on: reliability over speed").
-  *Why:* shows why this answer fits this project, so you can tell later whether it still holds when a priority or constraint changes. The question is stated here, not linked, because it leaves Open decisions once it's settled.
+- **Context:** the question it settles, linked in Open decisions, and the priorities and constraints it relies on, each named and linked (e.g. "relies on: reliability over speed").
+  *Why:* shows why this answer fits this project, so you can tell later whether it still holds when a priority or constraint changes.
 - **Evidence** (only if a spike was run): what the spike tried and found.
   *Why:* this is where a spike's result survives, whatever happens to its code. It shows the decision rests on something tested, not a guess.
 - **Decision:** the choice, in a sentence or two.
-  *Why:* the answer itself, stated once, so specs and CLAUDE.md can point to it instead of restating it.
+  *Why:* the answer itself, stated once, so other documents can point to it instead of restating it.
 - **Alternatives:** each option not taken, with one line on why not.
   *Why:* stops the same question being reopened. Agents often suggest a rejected option again, and the "why not" lets you dismiss it quickly.
 - **Consequences:** what the decision makes easier or harder, and what would make you revisit it.
@@ -107,7 +103,7 @@ Why a decision was made that someone would ask "why?" about, and what was reject
 - **Supersedes** (only if it replaces an earlier ADR): the ADR it replaces.
   *Why:* a decision is replaced by a new ADR, never by editing the old one, so the reasons for the old one survive. An ADR is current unless a later one supersedes it.
 
-**Links back to:** Vision (the priorities and constraints it relies on); the ADR it supersedes.
+**Links back to:** Open decisions (the question it settles); Vision (the priorities and constraints it relies on); the ADR it supersedes.
 
 ---
 
@@ -119,8 +115,8 @@ What one component promises to the rest of the system, precisely enough to build
 **Contains:**
 - **Doesn't do:** things a reader might expect here that belong elsewhere, and options, extension points or generality it deliberately lacks.
   *Why:* agents fill gaps, absorb neighbouring jobs and add generality nobody asked for. This states the boundary where they'll read it.
-- **Contracts it provides:** for each contract from System that a slice needs: fields and types, errors and bad-input behaviour, and one example. Shared entities link to their meaning in System's data model.
-  *Why:* what other components and tasks build against. System says it in plain language; this makes it exact. The example doubles as a test case and is what agents copy best. One definition per contract means the two sides can't disagree. Only contracts a slice needs, because one written ahead of its first use is usually wrong by the time it's used.
+- **Contracts it provides:** for each contract System says it provides: fields and types, errors and bad-input behaviour, and one example. Shared entities link to their meaning in System's data model.
+  *Why:* what other components and tasks build against. System says it in plain language; this makes it exact. The example doubles as a test case and is what agents copy best. One definition per contract means the two sides can't disagree.
 - **Owned data:** for each entity it owns, its fields, what identifies it, and when it's created, changed or deleted.
   *Why:* System gives an entity's meaning; this adds identity and lifecycle, which is where most data bugs come from (a re-scrape duplicating a record instead of updating it).
 - **External quirks:** for each external system it talks to, the limits and quirks the design relies on (rate limits, formats, how it fails).
@@ -128,14 +124,14 @@ What one component promises to the rest of the system, precisely enough to build
 - **Approach** (optional): a short paragraph on how it does its job, only where that isn't obvious from the contracts.
   *Why:* keeps your mental model of the component, and stops agents inventing a different approach on each task.
 
-**Links back to:** its entry in System; the ADRs behind its technology; the specs of components whose contracts it uses; Open decisions, for anything it leaves unsettled.
+**Links back to:** System; the ADRs behind its technology; the specs of components whose contracts it uses; Open decisions, for anything it leaves unsettled.
 
 ---
 
 ## Slice
 
-One thin, user-visible piece of the current version, and what "working" means for it.
-Wherever you put it (a file, a GitHub issue); the generator returns its contents. About half a page.
+One thin, user-visible piece of this version, and what "working" means for it.
+Wherever you put it (a file, a GitHub issue). About half a page.
 
 **Contains:**
 - **Outcome:** one line: what the user can do afterwards that they couldn't before.
@@ -146,8 +142,8 @@ Wherever you put it (a file, a GitHub issue); the generator returns its contents
   *Why:* defines "working" across components. They become the tasks' checks. What the user sees is decided here, not left to whoever builds it.
 - **Out of scope:** nearby behaviour this slice deliberately doesn't handle (edge cases, options, variations).
   *Why:* without it, agents handle every edge case and add options no scenario needs.
-- **Touches:** the components and what changes in each, with links to the contracts it needs (in the component spec, or in System where no spec exists yet).
-  *Why:* shows the slice is vertical, shows which contracts need writing or tightening before tasks can build on them, and seeds the task split.
+- **Touches:** the components and what changes in each, with links to the contracts it needs in the component specs.
+  *Why:* shows the slice is vertical, which contracts it relies on, and how it splits into tasks.
 
 **Links back to:** the Vision goal or open question it serves; the contracts it touches.
 
@@ -155,20 +151,20 @@ Wherever you put it (a file, a GitHub issue); the generator returns its contents
 
 ## Task
 
-One change small enough to review in one sitting, and how you'll know it's done. The handoff to your own implementation workflow.
-Part of a slice, or standalone for a change that needs no slice. Wherever you put it (a file, a GitHub sub-issue); the generator returns its contents.
+One change small enough to review in one sitting, and how you'll know it's done.
+Part of a slice, or standalone for a change that needs no slice (e.g. a dependency bump). Wherever you put it (a file, a GitHub sub-issue). A few lines.
 
 **Contains:**
 - **What:** the change, in a sentence or two.
   *Why:* the unit of work. If it needs "and", it's two tasks. It usually touches one component; one that crosses components is usually a contract plus its two sides, and splits into tasks for each.
-- **Spec link:** the exact spec or ADR section(s) it builds or relies on, or `none` for a change with no specced behaviour.
-  *Why:* gives whoever builds it the exact contract without copying it, which keeps agent context small and keeps one source of truth. The task builds what the spec says; a design choice the spec doesn't make goes back to the spec, not into the task.
+- **Spec link:** the exact spec or ADR section(s) it builds or relies on, or `none` for a change with no specced behaviour (e.g. a refactor).
+  *Why:* gives whoever builds it the exact contract without copying it, which keeps agent context small and keeps one source of truth. The task builds what the spec says; a design choice the spec doesn't make (a contract field, a new dependency, an option, behaviour the user sees) goes back to the spec, not into the task.
 - **Out of scope:** what's nearby but not this task.
-  *Why:* agents do more than they're asked. Usually drawn from the slice's Out of scope and its other tasks.
+  *Why:* agents do more than they're asked. Only what's specific to this task; its slice's Out of scope already applies.
 - **Check:** a command, or steps and what you should see, naming the acceptance scenario it proves or the open question it settles, if any.
-  *Why:* "done" that anyone can run; without it, "looks done" is the only signal. Naming the scenario shows the slice's scenarios are covered; for a spike, the check is the result that would settle its question.
+  *Why:* "done" that anyone can run; without it, "looks done" is the only signal. Naming the scenario tells the builder which behaviour the check proves; for a spike, it links to what would settle its question.
 - **Depends on** (optional): tasks that must land first.
-  *Why:* a fact about the work (one task builds a contract another uses), unlike slice order, which is your call.
+  *Why:* a fact about the work: one task builds a contract another uses.
 
 **Links back to:** its slice, if it has one; the sections in its Spec link; for a spike, the open question it settles.
 
@@ -176,20 +172,20 @@ Part of a slice, or standalone for a change that needs no slice. Wherever you pu
 
 ## Derived files
 
-Generated from the documents; you don't write them. Each gives what it's **Derived from** and what it **Holds**.
+Generated; you don't write them. Each gives what it's **Derived from** and what it **Holds**.
 
 ### CLAUDE.md block
 
 What an agent needs in every session, without loading the documents.
 A marked block in the project's CLAUDE.md; everything outside the block is yours. About 20–30 lines.
-*Why the size:* it loads in every session, and more context doesn't make agents follow it any better.
+*Why the size:* it loads in every session.
 
-**Derived from:** Vision (Problem and users, Priorities, Non-goals); current ADRs (those no later ADR supersedes); the documents in `docs/`; the Task entry's spec-first rule in this file.
+**Derived from:** Vision (Problem and users, Priorities, Non-goals); current ADRs; the documents in `docs/`; the Task entry's Spec link in this file.
 
 **Holds:**
-- The project in one line, with a link to the overview.
+- The project in one line, with a link to `docs/01-overview.md`.
   *Why:* agents know what the project is for without you restating it.
-- Where each document lives, one line each.
+- Where each document in `docs/` lives, one line each.
   *Why:* agents open the right document; this replaces a code map.
 - Priorities and non-goals, copied from Vision.
   *Why:* what an agent most needs in every session to avoid over-engineering and scope creep.
@@ -214,10 +210,10 @@ What an agent must not do in a component's code, in front of it while it works t
 ### Context diagram
 
 The single picture of the system.
-A marked block at the end of the System section.
+`docs/context-diagram.md`.
 
 **Derived from:** System's Components, Contracts and External systems.
 
 **Holds:**
 - A Mermaid diagram of the user, the components, the external systems, and the contracts between them.
-  *Why:* the fastest way to reload your mental model after a break. Derived so it can't drift from the lists it shows.
+  *Why:* the fastest way to reload your mental model after a break. Derived, so it's regenerated rather than edited by hand.
