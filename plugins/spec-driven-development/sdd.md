@@ -212,7 +212,7 @@ What an agent must not do in a component's code, in front of it while it works t
 The single picture of the system.
 `docs/context-diagram.md`.
 
-**Derived from:** System's Components, Contracts and External systems.
+**Derived from:** System's Components (including where the user touches them), Contracts and External systems.
 
 **Holds:**
 - A Mermaid diagram of the user, the components, the external systems, and the contracts between them.
