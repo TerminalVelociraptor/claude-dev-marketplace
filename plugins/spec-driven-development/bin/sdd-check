@@ -1,0 +1,344 @@
+#!/usr/bin/env python3
+"""Check project documents against the entries in sdd.md."""
+
+import argparse
+import re
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+
+HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
+# The colon belongs to the bold delimiter, not the item name. The second group
+# marks both "optional" and "only if ..." items as optional.
+ITEM_RE = re.compile(r"^- \*\*(.+?):?\*\*(?:\s+(\((?:optional|only if[^)]*)\)))?")
+TICK_RE = re.compile(r"`([^`]+)`")
+PLACEHOLDER_RE = re.compile(r"<[^>]+>")
+FENCE_RE = re.compile(r"^\s*(```|~~~)")
+CODE_SPAN_RE = re.compile(r"`[^`]*`")
+# Images and targets with spaces are outside the inline-link subset checked here.
+LINK_RE = re.compile(r'(?<!!)\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)')
+SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
+SUPERSEDES = ("ADR", "Supersedes")
+
+
+class CheckError(Exception):
+    pass
+
+
+class Parser(argparse.ArgumentParser):
+    def error(self, message):
+        raise CheckError(message)
+
+
+@dataclass
+class Entry:
+    name: str
+    pattern: str | None
+    section: str | None
+    derived: bool
+    items: list[tuple[str, bool]]
+
+
+@dataclass
+class Heading:
+    line: int
+    level: int
+    text: str
+
+
+@dataclass
+class Document:
+    path: Path | None
+    label: str
+    text: str
+    entry: Entry
+    root: Path
+
+    @property
+    def lines(self):
+        return self.text.splitlines()
+
+    @property
+    def headings(self):
+        return headings_in_document(self.text)
+
+    @property
+    def base(self):
+        return self.path.parent if self.path is not None else self.root
+
+
+def parse_entries(text):
+    blocks = []
+    current = None
+    for line in text.splitlines():
+        heading = HEADING_RE.match(line)
+        if heading and len(heading.group(1)) in (2, 3):
+            current = {"heading": heading.group(2), "lines": []}
+            blocks.append(current)
+        elif current is not None:
+            current["lines"].append(line)
+
+    entries = {}
+    for block in blocks:
+        lines = block["lines"]
+        markers = [line for line in lines if line in ("**Contains:**", "**Holds:**")]
+        if not markers:
+            continue
+
+        name = re.sub(r"\s+\([^)]*\)$", "", block["heading"])
+        nonempty = [line for line in lines if line.strip()]
+        # An item's marker cannot double as the entry's location line.
+        if len(nonempty) < 2 or nonempty[1] in ("**Contains:**", "**Holds:**"):
+            raise CheckError(f"{name}: no location line in sdd.md")
+        spans = TICK_RE.findall(nonempty[1])
+        path = next((span for span in spans if span.endswith(".md")), None)
+        section = next((span for span in spans if span.startswith("#")), None)
+
+        items = []
+        in_contains = False
+        for line in lines:
+            if line == "**Contains:**":
+                in_contains = True
+            elif in_contains and line.startswith("**Links back to:"):
+                in_contains = False
+            elif in_contains and (match := ITEM_RE.match(line)):
+                items.append((match.group(1), match.group(2) is not None))
+        if "**Contains:**" in markers and not items:
+            raise CheckError(f"{name}: Contains list has no items in sdd.md")
+
+        entry = Entry(name, PLACEHOLDER_RE.sub("*", path) if path else None,
+                      section, "**Holds:**" in markers, items)
+        entries[name.casefold()] = entry
+
+    if not entries:
+        raise CheckError("sdd.md has no entries")
+    adr, item = SUPERSEDES
+    if (adr.casefold() not in entries or
+            item.casefold() not in {name.casefold() for name, _ in entries[adr.casefold()].items}):
+        raise CheckError("update SUPERSEDES in bin/sdd-check")
+    return entries
+
+
+def visible_lines(text):
+    fence = None
+    for number, line in enumerate(text.splitlines(), 1):
+        marker = FENCE_RE.match(line)
+        if marker:
+            if fence is None:
+                fence = marker.group(1)[0]
+            elif marker.group(1)[0] == fence:
+                fence = None
+            continue
+        if fence is None:
+            yield number, CODE_SPAN_RE.sub("", line)
+
+
+def headings_in_document(text):
+    return [Heading(number, len(match.group(1)), match.group(2))
+            for number, line in visible_lines(text)
+            if (match := HEADING_RE.match(line))]
+
+
+def links_in_document(text):
+    for number, line in visible_lines(text):
+        for match in LINK_RE.finditer(line):
+            target = match.group(2)
+            if not SCHEME_RE.match(target):
+                yield number, match.group(1), target
+
+
+def document_items(headings, entry):
+    if entry.section:
+        level = len(entry.section) - len(entry.section.lstrip("#"))
+        title = entry.section.lstrip("#").strip()
+        start = next((h for h in headings
+                      if h.level == level and h.text.casefold() == title.casefold()), None)
+    else:
+        start = next((h for h in headings if h.level == 1), None)
+    if start is None:
+        return None, []
+
+    items = []
+    for heading in headings:
+        if heading.line <= start.line:
+            continue
+        if heading.level <= start.level:
+            break
+        if heading.level == start.level + 1:
+            items.append(heading)
+    return start, items
+
+
+def structure_findings(document):
+    entry = document.entry
+    start, items = document_items(document.headings, entry)
+    if start is None:
+        if entry.section:
+            yield (document.label, 1, "structure", f"no `{entry.section}` section ({entry.name})")
+        else:
+            yield (document.label, 1, "structure", f"no `#` title heading ({entry.name})")
+        return
+
+    expected = {name.casefold(): (name, optional) for name, optional in entry.items}
+    seen = {}
+    for item in items:
+        key = item.text.casefold()
+        if key in seen:
+            yield (document.label, item.line, "structure",
+                   f"`{item.text}` appears twice (first at line {seen[key]})")
+        elif key not in expected:
+            yield (document.label, item.line, "structure",
+                   f"`{item.text}` is not an item of {entry.name} in sdd.md")
+        seen.setdefault(key, item.line)
+    for key, (name, optional) in expected.items():
+        if not optional and key not in seen:
+            yield (document.label, start.line, "structure",
+                   f"missing item `{name}` ({entry.name})")
+
+
+def heading_slugs(headings):
+    counts = {}
+    slugs = {}
+    for heading in headings:
+        text = LINK_RE.sub(r"\1", heading.text).lower()
+        base = re.sub(r"[^\w -]", "", text).replace(" ", "-")
+        count = counts.get(base, 0)
+        counts[base] = count + 1
+        slugs[f"{base}-{count}" if count else base] = heading
+    return slugs
+
+
+def normalise(text):
+    text = LINK_RE.sub(r"\1", text)
+    text = re.sub(r"[`*_]", "", text)
+    return " ".join(text.casefold().split())
+
+
+def display_path(path, root):
+    try:
+        return path.relative_to(root).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def superseded_targets(documents):
+    superseded = {}
+    exempt_lines = set()
+    for document in documents:
+        if document.entry.name.casefold() != SUPERSEDES[0].casefold():
+            continue
+        _, items = document_items(document.headings, document.entry)
+        supersedes = next((h for h in items if h.text.casefold() == SUPERSEDES[1].casefold()), None)
+        if supersedes is None:
+            continue
+        next_line = min((h.line for h in items if h.line > supersedes.line),
+                        default=len(document.lines) + 1)
+        for line, _, target in links_in_document(document.text):
+            if not supersedes.line < line < next_line:
+                continue
+            file_part = target.split("#", 1)[0]
+            if not file_part:
+                continue
+            superseded[(document.base / file_part).resolve()] = document.label
+            exempt_lines.add((document.label, line))
+    return superseded, exempt_lines
+
+
+def link_findings(document, superseded, exempt_lines):
+    for line, text, target in links_in_document(document.text):
+        file_part, _, anchor = target.partition("#")
+        path = (document.base / file_part).resolve() if file_part else document.path
+        if path is None or not path.is_file():
+            yield (document.label, line, "broken-link", f"`{target}`: no such file")
+            continue
+
+        if anchor and path.suffix.casefold() == ".md":
+            headings = headings_in_document(path.read_text(encoding="utf-8"))
+            heading = heading_slugs(headings).get(anchor)
+            if heading is None:
+                yield (document.label, line, "broken-link",
+                       f"`{target}`: no heading for `#{anchor}`")
+            else:
+                lines = path.read_text(encoding="utf-8").splitlines()
+                end = next((h.line - 1 for h in headings
+                            if h.line > heading.line and h.level <= heading.level), len(lines))
+                section = "\n".join(lines[heading.line - 1:end])
+                if normalise(text) not in normalise(section):
+                    yield (document.label, line, "not-in-target",
+                           f"`{text}` doesn't appear under `#{anchor}`")
+
+        if path in superseded and (document.label, line) not in exempt_lines:
+            yield (document.label, line, "superseded-link",
+                   f"`{target}` is superseded by {superseded[path]}")
+
+
+def collect_documents(entries, root, explicit):
+    documents = []
+    missing = {}
+    for entry in entries.values():
+        if entry.pattern is None:
+            continue
+        paths = sorted(path for path in root.glob(entry.pattern) if path.is_file())
+        if not paths and not entry.derived and "*" not in entry.pattern:
+            missing.setdefault(entry.pattern, []).append(entry.name)
+        for path in paths:
+            documents.append(Document(path.resolve(), display_path(path, root),
+                                      path.read_text(encoding="utf-8"), entry, root))
+
+    for entry, path in explicit:
+        if path == "-":
+            documents.append(Document(None, "<stdin>", sys.stdin.read(), entry, root))
+        else:
+            file = (root / path).resolve()
+            if not file.is_file():
+                raise CheckError(f"missing --doc file: {path}")
+            documents.append(Document(file, display_path(file, root),
+                                      file.read_text(encoding="utf-8"), entry, root))
+    return documents, missing
+
+
+def main(argv=None):
+    parser = Parser(prog="sdd-check")
+    parser.add_argument("--root", type=Path, default=Path.cwd())
+    parser.add_argument("--sdd", type=Path,
+                        default=Path(__file__).resolve().parent.parent / "sdd.md")
+    parser.add_argument("--doc", nargs=2, action="append", default=[], metavar=("ENTRY", "PATH"))
+    try:
+        args = parser.parse_args(argv)
+        root = args.root.resolve()
+        entries = parse_entries(args.sdd.read_text(encoding="utf-8"))
+        if sum(path == "-" for _, path in args.doc) > 1:
+            raise CheckError("only one --doc may read stdin")
+        explicit = []
+        for name, path in args.doc:
+            entry = entries.get(name.casefold())
+            if entry is None:
+                names = ", ".join(item.name for item in entries.values())
+                raise CheckError(f"unknown entry {name!r}; entries: {names}")
+            explicit.append((entry, path))
+        documents, missing = collect_documents(entries, root, explicit)
+        superseded, exempt_lines = superseded_targets(documents)
+        findings = set()
+        for path, names in missing.items():
+            findings.add((path, 1, "structure",
+                          f"missing file ({', '.join(names)} live here)"))
+        for document in documents:
+            if not document.entry.derived:
+                findings.update(structure_findings(document))
+        checked = set()
+        for document in documents:
+            key = document.path if document.path is not None else "<stdin>"
+            if key not in checked:
+                findings.update(link_findings(document, superseded, exempt_lines))
+                checked.add(key)
+        for path, line, kind, message in sorted(findings):
+            print(f"{path}:{line}: {kind}: {message}")
+        print(f"{len(findings)} finding(s)" if findings else "no findings")
+        return 1 if findings else 0
+    except (CheckError, OSError, UnicodeError) as exc:
+        print(f"sdd-check: {exc}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

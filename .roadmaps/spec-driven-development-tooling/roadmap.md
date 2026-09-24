@@ -2,14 +2,14 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #1_
-_Updated: 2026-09-24 - U2 closed_
+_Updated: 2026-09-24 - U3 closed_
 
 ## State
 | Unit | Name | State | Depends on |
 |---|---|---|---|
 | U1 | Record the follow-up research | done | - |
 | U2 | Apply the approved sdd.md edits | done | - |
-| U3 | `bin/sdd-check` and its tests | not started | U2 |
+| U3 | `bin/sdd-check` and its tests | done | U2 |
 | U4 | Generators and the menu setting | not started | U2 |
 | U5 | Derive skill | not started | U2 |
 | U6 | Update skill | not started | U3 |
@@ -23,6 +23,7 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 - all: user approved the Assumed rows and asked for them to be moved into Agreed; plan.md was edited once after start to do this - overrides `plan.md:24-41`. reason: user decision, 2026-09-24.
 - U1: the plan says to check both Agent OS rows, but only one existed in the interaction table; marked that existing row per user direction - overrides `plan.md:118`. reason: no second row was present.
 - U2: user approved including the required `.roadmaps` state change in addition to `sdd.md` in the diff-stat acceptance result - overrides `plan.md:154`. reason: roadmap state tracking is required during execution.
+- U3: each of the 22 tests adds a paired input control; verification also used a temporary always-clean checker to demonstrate that all 22 can fail - extends `plan.md:237-313`. reason: user requested evidence that tests measure their claimed behavior.
 
 ---
 
@@ -56,23 +57,15 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 
 ### U3 - `bin/sdd-check` and its tests
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 0h 30m
 
-**Executes:** `` plan.md:156-319 § U3: `bin/sdd-check` and its tests ``
-
-**Acceptance:** `` plan.md:321-323 § U3: `bin/sdd-check` and its tests ➔ Done when ``
-
-**Decisions:** `plan.md:29-31 § Agreed (this session)`; `plan.md:46 § Resolved labels ➔ O1`; `plan.md:49-51 § Resolved labels ➔ O4, O5, O5b`
-
-**Governed by:** `plan.md:10 § Context ➔ hard rule`; `plan.md:81-92 § Conventions`; `plan.md:98-103 § Stop-and-ask triggers`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: Built the document checker and 22 subprocess tests. Acceptance passed: `Ran 22 tests`, `OK`; removing casefold in a temporary checker copy made case 11 fail for the intended `not-in-target` finding. See Amendments for the added paired controls.
+- Files: Added executable `plugins/spec-driven-development/bin/sdd-check` (U6 calls its CLI) and `plugins/spec-driven-development/tests/test_sdd_check.py` (isolated roots, including one run against real `sdd.md`).
+- Gotchas: An always-clean checker made all 22 tests fail by assertion, but this is not a targeted implementation mutation for each case. Each test uses a new temporary root; reverse and shuffled orders also passed.
+- Decisions made and why: Added paired controls to every test to check input sensitivity without adding a mutation framework; kept the casefold implementation mutation in a temporary copy so the project file stayed untouched.
 
 ---
 
@@ -188,10 +181,10 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U2, done
-- Why stopped: U2 closed
+- Written against: U3, done
+- Why stopped: U3 closed
 - Mid-edit when stopped: nothing
 - Open question awaiting an answer: none
 - Working agreements: “I want to see only the text that changed.” (wording-proposal format; prompted by the U2 `sdd.md` proposal.)
-- Next action: `/roadmap begin U3`
+- Next action: `/roadmap begin U4`
 - Environment: branch `spec-driven-development_stage-1`
