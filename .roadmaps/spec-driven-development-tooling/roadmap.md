@@ -2,12 +2,12 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #1_
-_Updated: 2026-09-24 - former Assumed rows moved into Agreed in plan.md (one-off edit); pointers renumbered_
+_Updated: 2026-09-24 - U1 closed_
 
 ## State
 | Unit | Name | State | Depends on |
 |---|---|---|---|
-| U1 | Record the follow-up research | not started | - |
+| U1 | Record the follow-up research | done | - |
 | U2 | Apply the approved sdd.md edits | not started | - |
 | U3 | `bin/sdd-check` and its tests | not started | U2 |
 | U4 | Generators and the menu setting | not started | U2 |
@@ -21,28 +21,21 @@ States: `not started` / `in progress` / `done`
 ## Amendments
 _Append-only. Where execution diverged from the frozen plan. `none.` until one occurs._
 - all: user approved the Assumed rows and asked for them to be moved into Agreed; plan.md was edited once after start to do this - overrides `plan.md:24-41`. reason: user decision, 2026-09-24.
+- U1: the plan says to check both Agent OS rows, but only one existed in the interaction table; marked that existing row per user direction - overrides `plan.md:118`. reason: no second row was present.
 
 ---
 
 ### U1 - Record the follow-up research
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 0h 30m
 
-**Executes:** `plan.md:114-146 § U1: Record the follow-up research`
-
-**Acceptance:** `plan.md:147-149 § U1: Record the follow-up research ➔ Done when`
-
-**Decisions:** `plan.md:27 § Agreed (this session) ➔ research pass`; `plan.md:52 § Resolved labels ➔ O6`; `plan.md:54 § Resolved labels ➔ Q1`
-
-**Governed by:** `plan.md:98-103 § Stop-and-ask triggers`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: Follow-up research was added; the plan's acceptance checks passed.
+- Files: `plugins/spec-driven-development/research.md` updated with the checked Agent OS row, follow-up findings and verified-source entries.
+- Gotchas: The interaction table had one Agent OS row, not two; the existing row was marked checked per user direction. See Amendments.
+- Decisions made and why: Kept the plan's recommended Q1=A and O6=A choices for question style and menu opt-out.
 
 ---
 
@@ -202,10 +195,10 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U1, not started
-- Why stopped: roadmap just created
+- Written against: U1, done
+- Why stopped: U1 closed
 - Mid-edit when stopped: nothing
 - Open question awaiting an answer: none
 - Working agreements: none stated yet
-- Next action: `/roadmap begin U1` or `/roadmap begin U2` (both have no dependencies)
+- Next action: `/roadmap begin U2`
 - Environment: branch `spec-driven-development_stage-1`

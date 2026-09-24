@@ -61,8 +61,26 @@ Date: 2026-09-23. Our chain: Vision + System + Open decisions → Component spec
 | Challenge methods that fit planning: Pre-mortem, 5 Whys, First Principles, Socratic Questioning, Inversion, Occam's Razor, Subtraction, Abstraction Laddering | BMAD `methods.csv` | ✔ |
 | Conversational explore mode that writes nothing until you ask | OpenSpec `/opsx:explore` | agent report only |
 | "Keep it lightweight — This is shaping, not exhaustive documentation" | Agent OS `shape-spec.md` | ✔ |
-| Short answers are fine; a skipped section gets "To be defined" | Agent OS `plan-product.md` | agent report only |
+| Short answers are fine; a skipped section gets "To be defined" | Agent OS `plan-product.md` | ✔ |
 | Others comment "to poke holes or contribute missing information", not to approve | Shape Up ch. 6 | ✔ |
+
+## Follow-up: interviews and challenge menus
+Three questions for the generators, checked in primary sources on 2026-09-23.
+
+**How to ask so a short answer is enough**
+- **Spec Kit `/clarify`:** at most 5 questions a session, "EXACTLY ONE question at a time", each with a "Why it matters" line and a recommended option or a suggested answer of 5 words or fewer; it stops when you say "done". ✔
+- **BMAD `bmad-prd` (current):** "Open-ended 'tell me about X' beats multiple choice." "Infer-and-confirm ('I'm assuming X works like Y — right?') is fine; quizzing the user through a tree of LLM-shaped choices is not." "Fight the urge to do the thinking for them." ✔
+- **The Mom Test (Fitzpatrick):** "Ask about specifics in the past instead of generics or opinions about the future." *(four book summaries agree; the book wasn't checked)*
+- **Adopted:** open questions, infer-and-confirm, past specifics. No recommended answers: a recommendation is a guess, and it does the developer's thinking.
+
+**Whether challenge menus get skipped**
+- **BMAD issue #2373:** a user types "C" (continue) past nearly every step's menu; the maintainer replied that the PRD skill "gets rid of this constant continuation gating". ✔
+- **BMAD `bmad-prd` (current):** no menu after each section; elicitation is offered once, as available "at any point", and final reviews are "Stakes-calibrated — hobby/solo may run quietly or skip." ✔
+- **Adopted anyway:** a menu after each item, with an off switch. One menu per document is the fallback if it proves annoying.
+
+**When to stop, and what to do with unknowns**
+- **Agent OS `plan-product.md`:** "Keep it lightweight", "One question at a time", "If the user provides very brief answers, that's fine"; a skipped section gets "To be defined". ✔
+- **Adopted:** the interview is bounded by the Contains items. A question the developer can't settle goes into the end-of-run report for Open decisions, not into the document.
 
 ## What people report as too heavy
 
@@ -96,10 +114,12 @@ These fall under the "Not wanted" list in `brief.md`: gates, tracked state, or c
   - the Tessl tile README
   - Böckeler's article on martinfowler.com
   - Agent OS `shape-spec.md`
+  - Spec Kit `templates/commands/clarify.md`
+  - BMAD `skills/bmad-prd/SKILL.md`, `skills/bmad-advanced-elicitation/SKILL.md` and issue #2373
+  - Agent OS `commands/agent-os/plan-product.md`
 - **Agent report only, not checked:**
   - Reddit quotes
   - Kiro doc details (EARS, Quick Spec, Sync Files)
-  - Agent OS `plan-product.md` quotes
   - arc42 and C4 details
   - the ozimmer.ch article on ADR mistakes
   - BMAD's Medium, Scribd and dev.to sources
