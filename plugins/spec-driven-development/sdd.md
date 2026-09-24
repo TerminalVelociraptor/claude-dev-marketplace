@@ -12,6 +12,9 @@ Each entry opens with what the document is for, then where it lives and its size
 **Keep it short.** Each document you write gives a size. A document well over it is usually doing another document's job.
 *Why:* long documents are tedious to review, and more text doesn't make agents follow it any better.
 
+**Headings and links.** A document opens with a heading: its title, or, for a section of a file, the section heading. Each Contains item is a heading one level below it, named as in this file; an item marked optional or "only if" is left out when it doesn't apply. A link is a relative Markdown link to a file or a heading, and its text names what it points at in that section's own words, e.g. `[reliability over speed](../01-overview.md#priorities)`.
+*Why:* a heading per item gives every item a link target, and a link that names its target can be checked when the target changes.
+
 These documents have a "not" item: Vision's Non-goals, System's Not in the system, a component's Doesn't do, and a slice's and a task's Out of scope. It lists only what a reader might expect or an agent might add, each with where it lives instead or why not.
 
 ## What this process is not
@@ -54,8 +57,8 @@ What the parts are, what each is responsible for, and how they connect.
 `docs/01-overview.md`, `## System` section. One to two pages.
 
 **Contains:**
-- **Components:** each with a one-sentence role, what it owns, where it runs (conceptually: your machine, an always-on server, a phone, the user's browser; no hosts or products), and, if the user touches it, through what (a page, a command, a report).
-  *Why:* the map you and agents navigate by. "Owns" stops two components doing the same job; a role that needs "and" is probably two components. Where it runs catches mismatches that break the design, such as a scraper that must run daily when the MVP only runs on your laptop. "Through what" shows where the user meets the system, which is where every slice's outcome shows up.
+- **Components:** each with a one-sentence role, what it owns, where it runs (conceptually: your machine, an always-on server, a phone, the user's browser; no hosts or products), and, if the user touches it, through what (a page, a command, a report); and a link to its component spec.
+  *Why:* the map you and agents navigate by. "Owns" stops two components doing the same job; a role that needs "and" is probably two components. Where it runs catches mismatches that break the design, such as a scraper that must run daily when the MVP only runs on your laptop. "Through what" shows where the user meets the system, which is where every slice's outcome shows up. The link takes you and agents from the map to what the component promises.
 - **Contracts:** who provides what to whom, in plain language (e.g. "Scraper provides events: venue, date, artists, source URL").
   *Why:* the seams each component can rely on, agreed before anyone picks a format.
 - **Shared data model:** only entities that cross a component boundary; for each, what it means (only fields that could be misread) and its one owner.
@@ -87,7 +90,7 @@ Questions that need deciding or checking, what would settle each, and a link to 
 ## ADR (decision record)
 
 Why a decision was made that someone would ask "why?" about, and what was rejected.
-`docs/decisions/NNNN-<title>.md`, one file per decision. Half a page.
+`docs/decisions/<NNNN>-<title>.md`, one file per decision. Half a page.
 
 **Contains:**
 - **Context:** the question it settles, linked in Open decisions, and the priorities and constraints it relies on, each named and linked (e.g. "relies on: reliability over speed").
@@ -177,7 +180,7 @@ Generated; you don't write them. Each gives what it's **Derived from** and what 
 ### CLAUDE.md block
 
 What an agent needs in every session, without loading the documents.
-A marked block in the project's CLAUDE.md; everything outside the block is yours. About 20–30 lines.
+A block in the project's CLAUDE.md, between the lines `<!-- sdd:start -->` and `<!-- sdd:end -->`; everything outside the block is yours. About 20–30 lines.
 *Why the size:* it loads in every session.
 
 **Derived from:** Vision (Problem and users, Priorities, Non-goals); current ADRs; the documents in `docs/`; the Task entry's Spec link in this file.
@@ -197,7 +200,8 @@ A marked block in the project's CLAUDE.md; everything outside the block is yours
 ### Path rules
 
 What an agent must not do in a component's code, in front of it while it works there.
-`.claude/rules/<component>.md`, one per component spec.
+`.claude/rules/<component>.md`, one per component spec whose component has code.
+*Why only with code:* a rule whose paths match nothing never loads.
 
 **Derived from:** the component spec; the component's code paths, taken from the repo (the one fact no document holds).
 

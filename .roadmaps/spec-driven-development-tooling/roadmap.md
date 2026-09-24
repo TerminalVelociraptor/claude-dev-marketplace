@@ -2,13 +2,13 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #1_
-_Updated: 2026-09-24 - U1 closed_
+_Updated: 2026-09-24 - U2 closed_
 
 ## State
 | Unit | Name | State | Depends on |
 |---|---|---|---|
 | U1 | Record the follow-up research | done | - |
-| U2 | Apply the approved sdd.md edits | not started | - |
+| U2 | Apply the approved sdd.md edits | done | - |
 | U3 | `bin/sdd-check` and its tests | not started | U2 |
 | U4 | Generators and the menu setting | not started | U2 |
 | U5 | Derive skill | not started | U2 |
@@ -22,6 +22,7 @@ States: `not started` / `in progress` / `done`
 _Append-only. Where execution diverged from the frozen plan. `none.` until one occurs._
 - all: user approved the Assumed rows and asked for them to be moved into Agreed; plan.md was edited once after start to do this - overrides `plan.md:24-41`. reason: user decision, 2026-09-24.
 - U1: the plan says to check both Agent OS rows, but only one existed in the interaction table; marked that existing row per user direction - overrides `plan.md:118`. reason: no second row was present.
+- U2: user approved including the required `.roadmaps` state change in addition to `sdd.md` in the diff-stat acceptance result - overrides `plan.md:154`. reason: roadmap state tracking is required during execution.
 
 ---
 
@@ -41,23 +42,15 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 
 ### U2 - Apply the approved sdd.md edits
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 0h 30m
 
-**Executes:** `plan.md:151-153 § U2: Apply the approved sdd.md edits`
-
-**Acceptance:** `plan.md:154 § U2: Apply the approved sdd.md edits ➔ Done when`
-
-**Edits:** `plan.md:57-77 § sdd.md edits (all approved)`; `plan.md:55 § Resolved labels ➔ S1–S5`
-
-**Governed by:** `plan.md:98-103 § Stop-and-ask triggers`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: The approved S1–S5 edits were applied verbatim to `sdd.md`; acceptance passed with the user's allowance for the roadmap state change in the diff.
+- Files: `plugins/spec-driven-development/sdd.md` updated with the approved heading/link, component-spec, ADR path, CLAUDE.md marker and path-rule wording.
+- Gotchas: The diff also includes the required U2 roadmap status update; the user approved this in the acceptance result. See Amendments.
+- Decisions made and why: Included the roadmap state update alongside `sdd.md` per user direction; see Amendments.
 
 ---
 
@@ -195,10 +188,10 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U1, done
-- Why stopped: U1 closed
+- Written against: U2, done
+- Why stopped: U2 closed
 - Mid-edit when stopped: nothing
 - Open question awaiting an answer: none
-- Working agreements: none stated yet
-- Next action: `/roadmap begin U2`
+- Working agreements: “I want to see only the text that changed.” (wording-proposal format; prompted by the U2 `sdd.md` proposal.)
+- Next action: `/roadmap begin U3`
 - Environment: branch `spec-driven-development_stage-1`
