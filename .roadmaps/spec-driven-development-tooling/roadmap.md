@@ -2,7 +2,7 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #1_
-_Updated: 2026-09-24 - U3 closed_
+_Updated: 2026-09-24 - U4 checkpointed; live acceptance pending_
 
 ## State
 | Unit | Name | State | Depends on |
@@ -10,7 +10,7 @@ _Updated: 2026-09-24 - U3 closed_
 | U1 | Record the follow-up research | done | - |
 | U2 | Apply the approved sdd.md edits | done | - |
 | U3 | `bin/sdd-check` and its tests | done | U2 |
-| U4 | Generators and the menu setting | not started | U2 |
+| U4 | Generators and the menu setting | in progress | U2 |
 | U5 | Derive skill | not started | U2 |
 | U6 | Update skill | not started | U3 |
 | U7 | Skill lint test | not started | U4, U5, U6 |
@@ -24,6 +24,9 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 - U1: the plan says to check both Agent OS rows, but only one existed in the interaction table; marked that existing row per user direction - overrides `plan.md:118`. reason: no second row was present.
 - U2: user approved including the required `.roadmaps` state change in addition to `sdd.md` in the diff-stat acceptance result - overrides `plan.md:154`. reason: roadmap state tracking is required during execution.
 - U3: each of the 22 tests adds a paired input control; verification also used a temporary always-clean checker to demonstrate that all 22 can fail - extends `plan.md:237-313`. reason: user requested evidence that tests measure their claimed behavior.
+- U4: the ADR skill passes `ADR (decision record)` rather than `ADR` - overrides `plan.md:355`. reason: this matches the heading in `sdd.md`; user approved the correction.
+- U4: every drafted item pauses for keep/revise review even with challenges off - overrides `plan.md:388-395`. reason: the live run skipped review when the menu was disabled; user approved R1.
+- U4: `challenge_menu` declares `default: true` - extends `plan.md:423-435`. reason: user requested an on-by-default setting that can be explicitly switched off.
 
 ---
 
@@ -71,7 +74,7 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 
 ### U4 - Generators and the menu setting
 
-**Status:** not started
+**Status:** in progress
 
 **Effort:** -
 
@@ -83,11 +86,11 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 
 **Governed by:** `plan.md:10 § Context ➔ hard rule`; `plan.md:81-92 § Conventions`; `plan.md:94-96 § Cross-cutting gotchas`; `plan.md:98-103 § Stop-and-ask triggers`
 
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: Six generators, shared interview/challenge methods, and the menu setting are built. Plugin validation passed; the user's live Vision run produced `docs/01-overview.md` in `test-sdd`. Menu-after-each-item and "I don't know" acceptance details, plus further link-bearing document runs, remain unchecked.
+- Files: Added `plugins/spec-driven-development/shared/generate.md`, `shared/challenge-methods.md`, and `skills/{vision,system,adr,component,slice,task}/SKILL.md`; modified `.claude-plugin/plugin.json`. U7 should read the six skills and shared procedure; U8 should read the manifest setting.
+- Gotchas: An unset boolean showed false in `/config` without a saved value, while the protocol treated anything but explicit false as menu-on; a saved false persists after adding a true default. The first menu-off run skipped draft review, prompting R1.
+- Decisions made and why: Match the ADR heading exactly; make draft review independent of the challenge menu; default the setting to true so its displayed initial value matches the intended behavior. See U4 Amendments.
 
 ---
 
@@ -181,10 +184,10 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U3, done
-- Why stopped: U3 closed
-- Mid-edit when stopped: nothing
-- Open question awaiting an answer: none
-- Working agreements: “I want to see only the text that changed.” (wording-proposal format; prompted by the U2 `sdd.md` proposal.)
-- Next action: `/roadmap begin U4`
+- Written against: U4, in progress
+- Why stopped: user requested a checkpoint before completing the remaining live acceptance checks.
+- Mid-edit when stopped: none; U4 files remain uncommitted.
+- Open question awaiting an answer: whether menu-after-each-item and "I don't know" in `plan.md:440-443 § U4 ➔ Done when` pass, and whether link-bearing document runs work; user reported 1 hour at the attempted close, so ask for the final total after the remaining work.
+- Working agreements: “I want to see only the text that changed.” (wording-proposal format; prompted by the U2 `sdd.md` proposal.) “don't close U4 yet” (stop-and-wait; prompted by the missing "I don't know" test and planned link-bearing generator runs.)
+- Next action: wait for the user's live tests and explicit `/roadmap close U4`; do not begin U5.
 - Environment: branch `spec-driven-development_stage-1`

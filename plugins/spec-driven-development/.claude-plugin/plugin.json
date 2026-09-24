@@ -10,5 +10,13 @@
     "specs",
     "planning",
     "spec-driven-development"
-  ]
+  ],
+  "userConfig": {
+    "challenge_menu": {
+      "type": "boolean",
+      "default": true,
+      "title": "Challenge menu",
+      "description": "After each drafted item, offer a menu of challenge methods. Set to false to turn it off."
+    }
+  }
 }
