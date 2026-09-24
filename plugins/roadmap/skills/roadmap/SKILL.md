@@ -190,7 +190,7 @@ Only `start` and `close` commit.
    tooling leave artifacts in the working directory that are not yours to commit.
 4. Never `git add -A` or `git add.`. Non-regulare files are never project content, and `git add`
    refuses them outright, so a blanket add hard-fails rather than failing quietly.
-5. Message is `<ticket>: <message>`, using the work item from the header; with no ticket, the message
+5. Message is `[<ticket>] <message>`, using the work item from the header; with no ticket, the message
    alone. do not go looking for a house style in the commit history.
 6. **Never push. Never rebase.**
 
