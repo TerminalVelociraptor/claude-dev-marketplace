@@ -1,6 +1,6 @@
 {
   "name": "spec-driven-development",
-  "description": "Interview skills, templates and checks for breaking a solo project down, level by level, from idea to tickets. Human in the loop; implementation is out of scope.",
+  "description": "Document definitions, interview skills and consistency checks for a solo project, from idea to tasks. Human in the loop; implementation is out of scope.",
   "version": "0.1.0",
   "author": {
     "name": "David Engel",
