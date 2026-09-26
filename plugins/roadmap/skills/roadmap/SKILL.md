@@ -131,8 +131,8 @@ walking away mid-unit.
    command is worse than an honest observable behavior because it launders a failure as a pass.
 2. **Fill all four findings categories** from what actually happened - never from what the plan said
    would happen. A unit cannot close until they are filled.
-3. **Record divergence.** Anything done differently from the plan becomes an `Amendments` entry
-   naming the plan lines it overrides. `Outcome` either states "no deviations" or points at them.
+3. **Record divergence.** Anything done differently from the plan, or decided for a later unit,
+   becomes an `Amendments` entry naming the plan lines it overrides. `Outcome` either states "no deviations" or points at them.
 4. **Ask for effort.** Ask the user how long the unit took, and write the answer to `Effort:` as
    `xh ym` rounded to the nearest 30 minutes - `3h 0m`, `0h 15m`, `3h 45m`. This is the figure to log
    in the work item. Never estimate it, and never infer it from timestamps or commit history.
@@ -163,7 +163,9 @@ geniunely nothing to record is written `none.` - never blank, never padded with 
 
 ## Amendments
 
-Append-only, one line per divergence, naming the plan lines it overrides. The plan is never edited to
+Append-only, one line per divergence, done or decided, naming the plan lines it overrides. Record a
+decision that changes a later unit as soon as the user approves it, not at the next checkpoint or
+close, and say so in one line. It is committed with the next close. The plan is never edited to
 match reality; the roadmap records where they parted. Keeping them in one list rather than scattered
 per unit is what makes a part-finished ticket readable.
 
