@@ -10,10 +10,11 @@ Read `sdd.md` in the plugin root, in full. Everything about the document comes f
 ## 2. Find where it goes and what it draws on
 - **Location.** The entry's location says where the document lives.
   - A path: you write there. Fill any `<...>` placeholder from the interview (for a number, the next unused one in that directory) and show the path before writing.
-  - A section of a file: change only that section and leave the rest of the file as it is.
+  - A section of a file: change only that section and leave the rest of the file as it is. If the section isn't there yet, add it where `sdd.md` places it among that file's sections.
   - No path: return the document in your reply; the developer puts it where they want.
 - **Already there.** If the document exists, show it and ask which items to revise, or whether to stop. Interview only on the items the developer names.
 - **Sources.** Of the documents in **Links back to**, read a single document in full. Where it names a set (one of several files), list the set and open only the members the interview makes relevant. Link to them; never restate them. For one with no fixed location, ask where it is (a file, or an issue number to read with gh issue view <n>). If one doesn't exist yet, say so once and carry on.
+- **Open decisions.** Read the Open decisions section (its location is in `sdd.md`). For each question with no answer link that is needed before this document, quote it and ask whether to settle it first or go ahead. If the developer goes ahead, treat it as unsettled (step 3.2).
 
 ## 3. Interview, draft and challenge, one item at a time
 Take the Contains items in the order `sdd.md` lists them. For each item:
@@ -23,7 +24,7 @@ Take the Contains items in the order `sdd.md` lists them. For each item:
    - Don't ask what a source or an earlier answer already settles; confirm it instead: "Vision says no cloud accounts, so this runs on your machine — right?"
    - Short answers are fine.
    - For an item marked optional or "only if", first ask whether it applies. If not, leave it out.
-2. **Don't guess.** If the developer can't settle something, don't fill it in. Keep the question, and where it came from, for the report at the end, and draft the item with what is settled.
+2. **Don't guess.** If the developer can't settle something, don't fill it in. Keep the question, and where it came from, for Open decisions at the end, and draft the item with what is settled, linking the unsettled part to Open decisions.
 3. **Draft** the item following `sdd.md`'s rules, sized so the whole document fits the entry's size, and show it for review. Do not start the next item's questions in the same message.
 4. **Review.** If the Challenge menu setting is `false`, ask whether to keep or revise the draft. After a revision, show it and ask again. Otherwise, offer a numbered challenge menu:
    - 3–5 methods from `shared/challenge-methods.md` in the plugin root, chosen for the mistake this item's *Why* names;
@@ -35,7 +36,8 @@ Take the Contains items in the order `sdd.md` lists them. For each item:
 
 ## 4. Deliver
 - Show the whole document. If it is well over the entry's size, name the item that looks like it's doing another document's job, and ask. Don't cut anything on your own.
-- Write it to its location only after the developer confirms, or return it if the entry names no path. Write nothing else: knock-on changes to other documents are the update skill's job.
+- Write it to its location only after the developer confirms, or return it if the entry names no path. Write nothing else but the Open decisions entries the developer approves: knock-on changes to other documents are the update skill's job.
+- **Open decisions.** For each question you couldn't settle, draft its entry following the Open decisions entry in `sdd.md`, linking to the item it came from, and ask what document, if any, it must be settled before. Show the entries, then add the ones the developer approves to Open decisions.
 - End with:
-  - **Open questions:** each question you couldn't settle, with where it came from, for the developer to add to Open decisions.
+  - **Open questions:** each question you couldn't settle, and whether it was added to Open decisions.
   - **Next:** the update skill, if this may affect other documents; the derive skill, if a derived file draws on this document.

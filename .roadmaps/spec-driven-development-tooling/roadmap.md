@@ -2,7 +2,7 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #1_
-_Updated: 2026-09-24 - U4 checkpointed; live acceptance pending_
+_Updated: 2026-09-26 - U4 closed_
 
 ## State
 | Unit | Name | State | Depends on |
@@ -10,7 +10,7 @@ _Updated: 2026-09-24 - U4 checkpointed; live acceptance pending_
 | U1 | Record the follow-up research | done | - |
 | U2 | Apply the approved sdd.md edits | done | - |
 | U3 | `bin/sdd-check` and its tests | done | U2 |
-| U4 | Generators and the menu setting | in progress | U2 |
+| U4 | Generators and the menu setting | done | U2 |
 | U5 | Derive skill | not started | U2 |
 | U6 | Update skill | not started | U3 |
 | U7 | Skill lint test | not started | U4, U5, U6 |
@@ -27,6 +27,10 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 - U4: the ADR skill passes `ADR (decision record)` rather than `ADR` - overrides `plan.md:355`. reason: this matches the heading in `sdd.md`; user approved the correction.
 - U4: every drafted item pauses for keep/revise review even with challenges off - overrides `plan.md:388-395`. reason: the live run skipped review when the menu was disabled; user approved R1.
 - U4: `challenge_menu` declares `default: true` - extends `plan.md:423-435`. reason: user requested an on-by-default setting that can be explicitly switched off.
+- U4: generators add unsettled questions to Open decisions after approval, link each to the item it came from, gate on open questions needed before the document being generated, and place a missing section where `sdd.md` puts it (G1–G5) - overrides `plan.md:374`, `plan.md:377`, `plan.md:387`, `plan.md:399-401`. reason: unsettled questions had no defined path into Open decisions; user approved, 2026-09-26.
+- U4: `plan.md:13` read narrowly: no generator produces Open decisions, but generators may add lines to it - narrows `plan.md:13`. reason: user approved G1–G5, 2026-09-26.
+- U4: `sdd.md` Open decisions gains an optional "needed before" document, named in plain text (S6–S7); U4 also carries the user's own System Components edit at `sdd.md:60` - overrides `plan.md:331` (must not touch `sdd.md`). reason: S6–S7 support the G2 gate, user approved 2026-09-26; the `sdd.md:60` edit was the user's, found uncommitted at close, reason not recorded.
+- U6: the Contradictions bullet adds the example "an Open decisions question with no answer link while an ADR or document already settles it" - overrides `plan.md:510`. reason: generators now append to Open decisions (U4 G1–G5); user approved, 2026-09-26.
 
 ---
 
@@ -74,23 +78,15 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 
 ### U4 - Generators and the menu setting
 
-**Status:** in progress
+**Status:** done
 
-**Effort:** -
-
-**Executes:** `plan.md:325-436 § U4: Generators (six thin skills, a shared protocol and methods), plus the menu setting`
-
-**Acceptance:** `plan.md:438-443 § U4 ➔ Done when`; live run `plan.md:599-601 § Verification`
-
-**Decisions:** `plan.md:28 § Agreed (this session) ➔ challenge menu`; `plan.md:33-34 § Agreed (this session) ➔ skill name, live run`; `plan.md:46 § Resolved labels ➔ O1`; `plan.md:49 § Resolved labels ➔ O4`; `plan.md:52 § Resolved labels ➔ O6`; `plan.md:54 § Resolved labels ➔ Q1`; `plan.md:37-39 § Agreed (this session)`
-
-**Governed by:** `plan.md:10 § Context ➔ hard rule`; `plan.md:81-92 § Conventions`; `plan.md:94-96 § Cross-cutting gotchas`; `plan.md:98-103 § Stop-and-ask triggers`
+**Effort:** 2h 0m
 
 **Key findings:**
-- Outcome: Six generators, shared interview/challenge methods, and the menu setting are built. Plugin validation passed; the user's live Vision run produced `docs/01-overview.md` in `test-sdd`. Menu-after-each-item and "I don't know" acceptance details, plus further link-bearing document runs, remain unchecked.
-- Files: Added `plugins/spec-driven-development/shared/generate.md`, `shared/challenge-methods.md`, and `skills/{vision,system,adr,component,slice,task}/SKILL.md`; modified `.claude-plugin/plugin.json`. U7 should read the six skills and shared procedure; U8 should read the manifest setting.
-- Gotchas: An unset boolean showed false in `/config` without a saved value, while the protocol treated anything but explicit false as menu-on; a saved false persists after adding a true default. The first menu-off run skipped draft review, prompting R1.
-- Decisions made and why: Match the ADR heading exactly; make draft review independent of the challenge menu; default the setting to true so its displayed initial value matches the intended behavior. See U4 Amendments.
+- Outcome: Six generator skills, a shared generate procedure, challenge methods and the `challenge_menu` setting (default on) are built; generators now add unsettled questions to Open decisions and warn on open questions that block the document. Acceptance passed: `claude plugin validate` printed `✔ Validation passed`; the user reported all live checks passed (one question per message, menu after each item, "I don't know" under Open questions and appended to Open decisions, link-bearing runs). See U4 Amendments.
+- Files: Added `plugins/spec-driven-development/shared/generate.md`, `shared/challenge-methods.md`, `skills/{vision,system,adr,component,slice,task}/SKILL.md`; modified `.claude-plugin/plugin.json` and `sdd.md` (Open decisions "needed before", System Components wording). U6 must read `generate.md` §4 and the U6 Amendment: generators write Open decisions lines, so update's Contradictions check gains an example. U7 should read the six skills and `generate.md`; U8 the manifest setting and the Open decisions flow, since `plan.md:568` says that section is kept by hand.
+- Gotchas: An unset boolean showed false in `/config` while the protocol treated it as menu-on; a saved false persists after adding a true default. The first menu-off run skipped draft review. A live run claimed the update skill would link Open decisions to System; update as planned has no such check, and nothing then wrote Open decisions lines.
+- Decisions made and why: Match the ADR heading exactly; make draft review independent of the menu; default the menu on so `/config` shows the real behavior. Generators append Open decisions lines after approval rather than leaving it manual, because the manual path lost questions. "Needed before" is optional and plain text: `sdd.md:130` lets a component spec leave questions open, and a link to a not-yet-written document would be a broken link. The gate warns rather than blocks, so the developer decides. Update gets only one Contradictions example, not a status check, since status tracking is out of scope (`plan.md:15`).
 
 ---
 
@@ -184,10 +180,10 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U4, in progress
-- Why stopped: user requested a checkpoint before completing the remaining live acceptance checks.
-- Mid-edit when stopped: none; U4 files remain uncommitted.
-- Open question awaiting an answer: whether menu-after-each-item and "I don't know" in `plan.md:440-443 § U4 ➔ Done when` pass, and whether link-bearing document runs work; user reported 1 hour at the attempted close, so ask for the final total after the remaining work.
-- Working agreements: “I want to see only the text that changed.” (wording-proposal format; prompted by the U2 `sdd.md` proposal.) “don't close U4 yet” (stop-and-wait; prompted by the missing "I don't know" test and planned link-bearing generator runs.)
-- Next action: wait for the user's live tests and explicit `/roadmap close U4`; do not begin U5.
+- Written against: U4, done
+- Why stopped: U4 closed at the user's command.
+- Mid-edit when stopped: none.
+- Open question awaiting an answer: approval of A1–A4, the proposed `plugins/roadmap` skill wording that records decided overrides of later units as Amendments when made; outside this plan, to be committed separately.
+- Working agreements: “I want to see only the text that changed.” (wording-proposal format; prompted by the U2 `sdd.md` proposal.)
+- Next action: wait for the user's `/roadmap begin` (U5 and U6 are unblocked).
 - Environment: branch `spec-driven-development_stage-1`

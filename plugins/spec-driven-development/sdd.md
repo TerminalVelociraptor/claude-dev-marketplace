@@ -57,7 +57,7 @@ What the parts are, what each is responsible for, and how they connect.
 `docs/01-overview.md`, `## System` section. One to two pages.
 
 **Contains:**
-- **Components:** each with a one-sentence role, what it owns, where it runs (conceptually: your machine, an always-on server, a phone, the user's browser; no hosts or products), and, if the user touches it, through what (a page, a command, a report); and a link to its component spec.
+- **Components:** each with a one-sentence role, what it owns, where it runs, and, if the user touches it, through what; and a link to its component spec. Name each as a kind, not as how it's built: your phone, not a host; a mobile UI, not its screens; what it has learned, not a graph. How it's built goes in the component spec's Approach; what the user sees goes in slices.
   *Why:* the map you and agents navigate by. "Owns" stops two components doing the same job; a role that needs "and" is probably two components. Where it runs catches mismatches that break the design, such as a scraper that must run daily when the MVP only runs on your laptop. "Through what" shows where the user meets the system, which is where every slice's outcome shows up. The link takes you and agents from the map to what the component promises.
 - **Contracts:** who provides what to whom, in plain language (e.g. "Scraper provides events: venue, date, artists, source URL").
   *Why:* the seams each component can rely on, agreed before anyone picks a format.
@@ -76,12 +76,12 @@ What the parts are, what each is responsible for, and how they connect.
 
 ## Open decisions
 
-Questions that need deciding or checking, what would settle each, and a link to each answer.
-`docs/01-overview.md`, `## Open decisions` section, after System. One line per question.
+Questions that need deciding or checking, what would settle each, what each must be settled before, if anything, and a link to each answer.
+`docs/01-overview.md`, `## Open decisions` section, after System. One short entry per question, one line per part.
 
 **Contains:**
-- **Questions:** a choice not made yet (a technology you mentioned, where something runs) or a risk nobody has checked (feasibility, data, cost); a link to where it came from (a document, or you); if answering it needs a spike (a task that tries something out), what result would settle it; and, for a settled question, a link to its answer: its ADR, or the document it concerns.
-  *Why:* keeps technology preferences and guesses out of Vision and System without losing them. Agents fill gaps confidently; this marks where the gaps are. What would settle it tells a spike when it's done. A settled question keeps its line, so nothing that links to it breaks; a question with no answer link is still open.
+- **Questions:** a choice not made yet (a technology you mentioned, where something runs) or a risk nobody has checked (feasibility, data, cost); a link to where it came from (a document, or you); if answering it needs a spike (a task that tries something out), what result would settle it; if a document can't be written until it's settled, that document, named in plain text since it may not exist yet (e.g. "needed before: Scraper component spec"); and, for a settled question, a link to its answer: its ADR, or the document it concerns.
+  *Why:* keeps technology preferences and guesses out of Vision and System without losing them. Agents fill gaps confidently; this marks where the gaps are. What would settle it tells a spike when it's done. Naming the document it blocks stops that document being written on a guess. A settled question keeps its entry, so nothing that links to it breaks; a question with no answer link is still open.
 
 **Links back to:** the document each question came from.
 
