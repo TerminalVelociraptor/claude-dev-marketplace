@@ -14,7 +14,7 @@ _Updated: <date> - <what changed>_
 States: `not started` / `in progress` / `done`
 
 ## Amendments
-_Append-only. Where execution diverged from the frozen plan. `none.` until one occurs._
+_Append-only. Where execution diverged or will diverge from the frozen plan. `none.` until one occurs._
 - U<n>: <what was done differently> - overrides `plan.md:<lines>`. reason: <why>.
 
 ---

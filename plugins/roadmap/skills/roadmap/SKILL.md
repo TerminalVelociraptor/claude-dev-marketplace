@@ -125,14 +125,21 @@ walking away mid-unit.
 1. **Check acceptance and report the real result.** Follow the unit's `Acceptance` pointer and run
    or observe what it names. If it fails, the unit stays `in progress`.
 
+   **Don't re-run a pass that is still current.** If you ran the full acceptance check earlier in
+   this session, it passed, and nothing has changed since (no edits by you, and `git status
+   --porcelain` plus `git diff` show nothing new since that run), report that earlier result
+   instead of running the check again. Say that you reused it and what it covered. If you're
+   unsure whether anything changed, run it again. A result from a previous session, a handoff or
+   a subagent's report doesn't count.
+
    **A passing command proves nothing until you know it can fail.** Before trusting a pass, confirm
    the command measures what its prose claims and that its exit status reflects that check rather
    than some later step in a pipeline. A command that cannot fail is not acceptance, and a wrong
    command is worse than an honest observable behavior because it launders a failure as a pass.
 2. **Fill all four findings categories** from what actually happened - never from what the plan said
    would happen. A unit cannot close until they are filled.
-3. **Record divergence.** Anything done differently from the plan becomes an `Amendments` entry
-   naming the plan lines it overrides. `Outcome` either states "no deviations" or points at them.
+3. **Record divergence.** Anything done differently from the plan, or decided for a later unit,
+   becomes an `Amendments` entry naming the plan lines it overrides. `Outcome` either states "no deviations" or points at them.
 4. **Ask for effort.** Ask the user how long the unit took, and write the answer to `Effort:` as
    `xh ym` rounded to the nearest 30 minutes - `3h 0m`, `0h 15m`, `3h 45m`. This is the figure to log
    in the work item. Never estimate it, and never infer it from timestamps or commit history.
@@ -163,7 +170,9 @@ geniunely nothing to record is written `none.` - never blank, never padded with 
 
 ## Amendments
 
-Append-only, one line per divergence, naming the plan lines it overrides. The plan is never edited to
+Append-only, one line per divergence, done or decided, naming the plan lines it overrides. Record a
+decision that changes a later unit as soon as the user approves it, not at the next checkpoint or
+close, and say so in one line. It is committed with the next close. The plan is never edited to
 match reality; the roadmap records where they parted. Keeping them in one list rather than scattered
 per unit is what makes a part-finished ticket readable.
 
@@ -190,7 +199,7 @@ Only `start` and `close` commit.
    tooling leave artifacts in the working directory that are not yours to commit.
 4. Never `git add -A` or `git add.`. Non-regulare files are never project content, and `git add`
    refuses them outright, so a blanket add hard-fails rather than failing quietly.
-5. Message is `<ticket>: <message>`, using the work item from the header; with no ticket, the message
+5. Message is `[<ticket>] <message>`, using the work item from the header; with no ticket, the message
    alone. do not go looking for a house style in the commit history.
 6. **Never push. Never rebase.**
 
@@ -202,7 +211,7 @@ Where the project has no version control, say so once and skip every commit step
 - Never guess at a rotted pointer.
 - Never infer a verb, or act on "checkpoint" said in conversation.
 - Never move a unit to `in progress` outside `/roadmap begin`.
-- Never mark a unit `done` before its acceptance has been checked and passed.
+- Never mark a unit `done` before its acceptance has been checked and passed in its current state.
 - Never write findings from memory of what was planned.
 - Never invent a working agreement.
 - Never `git add -A`, never push, never rebase.

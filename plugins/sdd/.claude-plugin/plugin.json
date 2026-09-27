@@ -1,0 +1,22 @@
+{
+  "name": "sdd",
+  "description": "Document definitions, interview skills and consistency checks for a solo project, from idea to tasks. Human in the loop; implementation is out of scope.",
+  "version": "0.1.0",
+  "author": {
+    "name": "David Engel",
+    "email": "drengel88@gmail.com"
+  },
+  "keywords": [
+    "specs",
+    "planning",
+    "spec-driven-development"
+  ],
+  "userConfig": {
+    "challenge_menu": {
+      "type": "boolean",
+      "default": true,
+      "title": "Challenge menu",
+      "description": "After each drafted item, offer a menu of challenge methods. Set to false to turn it off."
+    }
+  }
+}

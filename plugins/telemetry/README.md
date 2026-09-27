@@ -57,12 +57,18 @@ several lines, so each `message.id` is counted once (the last line).
 - **`Stop`** prices the main transcript since the previous `Stop`, adds the
   queued subagents, adds untracked cost, and prints the total.
 
+Claude Code writes transcripts asynchronously: when `Stop` or `SubagentStop`
+fires, the final response is usually not on disk yet. Both hooks wait up to
+2s for the hook input's `last_assistant_message` to appear in the transcript
+(it has taken about 0.1s) before pricing it. A subagent with no transcript
+file isn't waited for.
+
 Every usage block is priced from `pricing.json` in four input buckets:
 
 | Bucket | Rate |
 |---|---|
 | `input_tokens` (uncached) | `input` |
-| `cache_read_input_tokens` | the model's `cache_read` (0.1× input; Fable 5.1 0.025×) |
+| `cache_read_input_tokens` | the model's `cache_read` (0.1× input; Opus 5.5 0.05×; Fable 5.1 0.025×) |
 | `cache_creation` 5-minute writes | 1.25× input |
 | `cache_creation` 1-hour writes | 2× input |
 
@@ -197,4 +203,7 @@ It's never cleaned automatically; delete it any time no session is running.
   next turn.
 - `Stop` doesn't fire for interrupted turns; their cost rolls into the next.
 - While the status line has stopped updating, each `Stop` waits 1.5s.
+- A final response that takes over 2s to reach the transcript is counted at
+  the next `Stop` (a subagent's is counted as untracked, or not at all
+  without the status line).
 - Only one status line can be active; telemetry's replaces any other.

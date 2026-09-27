@@ -1,7 +1,7 @@
 {
   "name": "telemetry",
   "description": "Per-turn cost reports (transcripts plus Claude Code's own running total) and a two-line status line: model, effort, git, coloured context use, session cost, 5-hour rate limit, and prompt cache state.",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "author": {
     "name": "David Engel",
     "email": "drengel88@gmail.com"
