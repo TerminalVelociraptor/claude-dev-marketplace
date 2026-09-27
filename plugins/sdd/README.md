@@ -37,4 +37,4 @@ Make the first slice the thinnest thing that runs end to end through the compone
 Any document can start as a draft from an interview. It's done when you've edited it until it says what you mean, not when the interview ends.
 
 ## Design notes
-[`brief.md`](brief.md) says what the tooling is for and the decisions behind it; [`research.md`](research.md) has the evidence.
+[`research.md`](research.md) has the evidence behind the design.

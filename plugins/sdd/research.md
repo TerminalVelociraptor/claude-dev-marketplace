@@ -97,7 +97,7 @@ Three questions for the generators, checked in primary sources on 2026-09-23.
 - **Spec Kit and OpenSpec on Reddit:** "overkill" for small projects; "Specs drift, and you end up re-speccing more than building"; "eight files and roughly 1,300 lines of specification text" for a trivial feature. *(agent report only, not checked)*
 
 ## Considered and not adopted
-These fall under the "Not wanted" list in `brief.md`: gates, tracked state, or checks on other steps.
+These fall under [What this process is not](sdd.md#what-this-process-is-not) in `sdd.md`: gates, tracked state, or checks on other steps.
 - Approval gates between phases (Kiro, Tessl).
 - Readiness checks and cross-document analysis gates (BMAD, Spec Kit `/analyze`). The update skill's contradiction check covers this on demand.
 - Task status tracking (Kiro, BMAD).
@@ -124,5 +124,5 @@ These fall under the "Not wanted" list in `brief.md`: gates, tracked state, or c
   - the ozimmer.ch article on ADR mistakes
   - BMAD's Medium, Scribd and dev.to sources
   - OpenSpec `/opsx:explore` transcripts
-  None of these alone supports anything in `sdd.md` or `brief.md`.
+  None of these alone supports anything in `sdd.md`.
 - **Method:** four Sonnet subagents, each on a group of sources, followed by spot checks against the primary sources.
