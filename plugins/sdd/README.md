@@ -1,4 +1,4 @@
-# spec-driven-development
+# sdd
 
 Interview skills and consistency checks for the project documents defined in [`sdd.md`](sdd.md), from an idea to tasks. You stay in the loop and keep the mental model: the tools interview, challenge, draft and report. Building a task stays in your own workflow.
 
@@ -9,14 +9,14 @@ Every tool runs only when you run it, on what you name.
 
 | Command | What it does | Run it when |
 |---|---|---|
-| [`/spec-driven-development:vision`](skills/vision/SKILL.md) | Interviews you and writes the Vision. | You start a project, or change what this version is. |
-| [`/spec-driven-development:system`](skills/system/SKILL.md) | Interviews you and writes the System section. | The Vision is settled enough to name the parts. |
-| [`/spec-driven-development:adr`](skills/adr/SKILL.md) | Interviews you and writes a decision record. | You settle a question someone would ask "why?" about. |
-| [`/spec-driven-development:component <name>`](skills/component/SKILL.md) | Interviews you and writes one component's spec. | A slice is about to touch that component. |
-| [`/spec-driven-development:slice`](skills/slice/SKILL.md) | Interviews you and returns a slice. | You pick the next piece to build. |
-| [`/spec-driven-development:task`](skills/task/SKILL.md) | Interviews you and returns a task. | You split a slice, or need a change that needs no slice. |
-| [`/spec-driven-development:derive`](skills/derive/SKILL.md) | Proposes the [derived files](sdd.md#derived-files). Writes what you approve. | You've changed a document they're derived from. |
-| [`/spec-driven-development:update`](skills/update/SKILL.md) | Reports structure problems, broken links, missing pieces, links to superseded ADRs, and contradictions. With nothing named, it checks every document `sdd.md` gives a location; name slices and tasks (files or issue numbers) to include them. Edits only what you approve. | You've changed a document, or before starting a slice. |
+| [`/sdd:vision`](skills/vision/SKILL.md) | Interviews you and writes the Vision. | You start a project, or change what this version is. |
+| [`/sdd:system`](skills/system/SKILL.md) | Interviews you and writes the System section. | The Vision is settled enough to name the parts. |
+| [`/sdd:adr`](skills/adr/SKILL.md) | Interviews you and writes a decision record. | You settle a question someone would ask "why?" about. |
+| [`/sdd:component <name>`](skills/component/SKILL.md) | Interviews you and writes one component's spec. | A slice is about to touch that component. |
+| [`/sdd:slice`](skills/slice/SKILL.md) | Interviews you and returns a slice. | You pick the next piece to build. |
+| [`/sdd:task`](skills/task/SKILL.md) | Interviews you and returns a task. | You split a slice, or need a change that needs no slice. |
+| [`/sdd:derive`](skills/derive/SKILL.md) | Proposes the [derived files](sdd.md#derived-files). Writes what you approve. | You've changed a document they're derived from. |
+| [`/sdd:update`](skills/update/SKILL.md) | Reports structure problems, broken links, missing pieces, links to superseded ADRs, and contradictions. With nothing named, it checks every document `sdd.md` gives a location; name slices and tasks (files or issue numbers) to include them. Edits only what you approve. | You've changed a document, or before starting a slice. |
 
 There's no [Open decisions](sdd.md#open-decisions) generator: each generator drafts an entry for every question it couldn't settle and adds the ones you approve. Anything else in that section you keep by hand.
 
