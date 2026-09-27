@@ -2,7 +2,7 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #1_
-_Updated: 2026-09-26 - U4 closed_
+_Updated: 2026-09-26 - U5 closed_
 
 ## State
 | Unit | Name | State | Depends on |
@@ -11,7 +11,7 @@ _Updated: 2026-09-26 - U4 closed_
 | U2 | Apply the approved sdd.md edits | done | - |
 | U3 | `bin/sdd-check` and its tests | done | U2 |
 | U4 | Generators and the menu setting | done | U2 |
-| U5 | Derive skill | not started | U2 |
+| U5 | Derive skill | done | U2 |
 | U6 | Update skill | not started | U3 |
 | U7 | Skill lint test | not started | U4, U5, U6 |
 | U8 | README | not started | U4, U5, U6 |
@@ -30,6 +30,9 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 - U4: generators add unsettled questions to Open decisions after approval, link each to the item it came from, gate on open questions needed before the document being generated, and place a missing section where `sdd.md` puts it (G1–G5) - overrides `plan.md:374`, `plan.md:377`, `plan.md:387`, `plan.md:399-401`. reason: unsettled questions had no defined path into Open decisions; user approved, 2026-09-26.
 - U4: `plan.md:13` read narrowly: no generator produces Open decisions, but generators may add lines to it - narrows `plan.md:13`. reason: user approved G1–G5, 2026-09-26.
 - U4: `sdd.md` Open decisions gains an optional "needed before" document, named in plain text (S6–S7); U4 also carries the user's own System Components edit at `sdd.md:60` - overrides `plan.md:331` (must not touch `sdd.md`). reason: S6–S7 support the G2 gate, user approved 2026-09-26; the `sdd.md:60` edit was the user's, found uncommitted at close, reason not recorded.
+- U5: globs taken from an existing rule file are re-checked with Glob; if one matches nothing, propose new globs from the repo layout and confirm with the developer - extends `plan.md:467`. reason: a moved component leaves a glob that matches nothing, so its rule silently stops loading (`sdd.md:204`); user approved, 2026-09-26.
+- U5: `argument-hint` is quoted - overrides `plan.md:452`. reason: unquoted, YAML reads `[...]` as a list; all six U4 skills quote theirs; user approved (D2), 2026-09-26.
+- U5: the live run used a repo with one of its two component specs, not none - overrides the setup at `plan.md:474`. reason: the user's test repo already had one spec; this exercised both skip reasons.
 - U6: the Contradictions bullet adds the example "an Open decisions question with no answer link while an ADR or document already settles it" - overrides `plan.md:510`. reason: generators now append to Open decisions (U4 G1–G5); user approved, 2026-09-26.
 
 ---
@@ -92,23 +95,15 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 
 ### U5 - Derive skill
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 2h 0m
 
-**Executes:** `plan.md:445-473 § U5: Derive skill`
-
-**Acceptance:** `plan.md:474-477 § U5: Derive skill ➔ Done when`; live run `plan.md:599-601 § Verification`
-
-**Decisions:** `plan.md:34 § Agreed (this session) ➔ live run`; `plan.md:47-49 § Resolved labels ➔ O2, O3, O4`; `plan.md:37 § Agreed (this session)`
-
-**Governed by:** `plan.md:10 § Context ➔ hard rule`; `plan.md:81-92 § Conventions`; `plan.md:94-96 § Cross-cutting gotchas`; `plan.md:98-103 § Stop-and-ask triggers`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: Built the derive skill from `plan.md:448-472`, with the glob re-check and quoted `argument-hint` (see U5 Amendments). Acceptance passed in the user's live run: a CLAUDE.md block between the `sdd` markers and a Mermaid context diagram were proposed; no rule file was written, with "no code" and "no spec and no code" as the reasons; `git status` was clean after declining. `claude plugin validate` printed `✔ Validation passed`. After the user added `src/` for one component, a second run proposed globs and wrote its rule file.
+- Files: Added `plugins/spec-driven-development/skills/derive/SKILL.md`. U7 lints it; U8 documents it.
+- Gotchas: Unquoted `argument-hint: [...]` parses as a YAML list, not a string. The re-check of an existing rule file's glob that matches nothing was not exercised in the live run.
+- Decisions made and why: Left the "no code yet" wording at `plan.md:476` unamended until the live run showed the real reason (Q1=A); the skill gave the code-based reason for each component, so no change was needed. Re-check existing globs because a moved component otherwise leaves a rule that silently stops loading (`sdd.md:204`).
 
 ---
 
@@ -180,10 +175,10 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U4, done
-- Why stopped: U4 closed at the user's command.
+- Written against: U5, done
+- Why stopped: U5 closed at the user's command.
 - Mid-edit when stopped: none.
-- Open question awaiting an answer: approval of A1–A4, the proposed `plugins/roadmap` skill wording that records decided overrides of later units as Amendments when made; outside this plan, to be committed separately.
+- Open question awaiting an answer: none.
 - Working agreements: “I want to see only the text that changed.” (wording-proposal format; prompted by the U2 `sdd.md` proposal.)
-- Next action: wait for the user's `/roadmap begin` (U5 and U6 are unblocked).
+- Next action: wait for the user's `/roadmap begin` (U6 is unblocked; U7 and U8 wait on U6).
 - Environment: branch `spec-driven-development_stage-1`
