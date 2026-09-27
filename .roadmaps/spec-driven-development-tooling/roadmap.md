@@ -2,7 +2,7 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #1_
-_Updated: 2026-09-26 - U6 closed_
+_Updated: 2026-09-26 - U7 closed_
 
 ## State
 | Unit | Name | State | Depends on |
@@ -13,7 +13,7 @@ _Updated: 2026-09-26 - U6 closed_
 | U4 | Generators and the menu setting | done | U2 |
 | U5 | Derive skill | done | U2 |
 | U6 | Update skill | done | U3 |
-| U7 | Skill lint test | not started | U4, U5, U6 |
+| U7 | Skill lint test | done | U4, U5, U6 |
 | U8 | README | not started | U4, U5, U6 |
 
 States: `not started` / `in progress` / `done`
@@ -38,6 +38,7 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 - U6: `argument-hint` is quoted - overrides `plan.md:486`. reason: unquoted, YAML reads `[...]` as a list (as U5); user approved (E2), 2026-09-26.
 - U6: judgment checks fetch a GitHub issue with `gh issue view <n>` - extends `plan.md:509`. reason: the issue is piped only into `sdd-check`, so there was no file for the model to Read; user approved (Q1=A), 2026-09-26.
 - U6: with nothing named, step 1 runs `sdd-check` with no `--doc` and does not ask for a target - extends `plan.md:500`. reason: a bare live run asked which file to check instead of checking `docs/`; user approved (F1), 2026-09-26.
+- U7: the lint test loads `parse_entries` from `bin/sdd-check` - overrides `plan.md:528` (`parse_sdd`). reason: `bin/sdd-check` has no `parse_sdd`; its entry parser is `parse_entries`; user approved, 2026-09-26.
 
 ---
 
@@ -127,23 +128,15 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 
 ### U7 - Skill lint test
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 1h 0m
 
-**Executes:** `plan.md:525-538 § U7: Skill lint test`
-
-**Acceptance:** `plan.md:540-542 § U7: Skill lint test ➔ Done when`
-
-**Decisions:** `plan.md:33 § Agreed (this session) ➔ skill name`; `plan.md:36-37 § Agreed (this session)`
-
-**Governed by:** `plan.md:10 § Context ➔ hard rule`; `plan.md:81-92 § Conventions`; `plan.md:98-103 § Stop-and-ask triggers`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: Built `tests/test_skill_lint.py` with six checks, one per row of `plan.md:531-538`. Acceptance passed: the suite printed `OK`, and the paste check failed naming `shared/generate.md`; each of the other five tests also failed on a bad input. One deviation: it loads `parse_entries` (see U7 Amendment).
+- Files: Added `plugins/spec-driven-development/tests/test_skill_lint.py`. U8 must read it: the two "not restated" checks scan `README.md` once it exists, so the README can't copy an `sdd.md` location or Why word for word.
+- Gotchas: `parse_entries` turns `<name>` into `*` and drops `(...)` from entry names, so the location check reads the original wording from `sdd.md` itself, and the `Document:` check drops the `(...)` the same way. `assertIn`/`assertNotIn` print the whole file or entry list on failure, so the tests use `assertTrue`/`assertFalse` with a one-line message.
+- Decisions made and why: Each check first asserts there is something to check, so a regex that matched nothing can't pass without testing anything. `README.md` is scanned only if it exists, since U8 hasn't written it yet. The restatement checks only catch exact copies, as the plan specifies.
 
 ---
 
@@ -171,10 +164,10 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U6, done
-- Why stopped: U6 closed at the user's command.
+- Written against: U7, done
+- Why stopped: U7 closed at the user's command.
 - Mid-edit when stopped: none.
 - Open question awaiting an answer: none.
 - Working agreements: “I want to see only the text that changed.” (wording-proposal format; prompted by the U2 `sdd.md` proposal.)
-- Next action: wait for the user's `/roadmap begin` (U7 and U8 are unblocked).
+- Next action: wait for the user's `/roadmap begin U8`.
 - Environment: branch `spec-driven-development_stage-1`
