@@ -2,7 +2,7 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #1_
-_Updated: 2026-09-26 - U5 closed_
+_Updated: 2026-09-26 - U6 closed_
 
 ## State
 | Unit | Name | State | Depends on |
@@ -12,7 +12,7 @@ _Updated: 2026-09-26 - U5 closed_
 | U3 | `bin/sdd-check` and its tests | done | U2 |
 | U4 | Generators and the menu setting | done | U2 |
 | U5 | Derive skill | done | U2 |
-| U6 | Update skill | not started | U3 |
+| U6 | Update skill | done | U3 |
 | U7 | Skill lint test | not started | U4, U5, U6 |
 | U8 | README | not started | U4, U5, U6 |
 
@@ -33,7 +33,11 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 - U5: globs taken from an existing rule file are re-checked with Glob; if one matches nothing, propose new globs from the repo layout and confirm with the developer - extends `plan.md:467`. reason: a moved component leaves a glob that matches nothing, so its rule silently stops loading (`sdd.md:204`); user approved, 2026-09-26.
 - U5: `argument-hint` is quoted - overrides `plan.md:452`. reason: unquoted, YAML reads `[...]` as a list; all six U4 skills quote theirs; user approved (D2), 2026-09-26.
 - U5: the live run used a repo with one of its two component specs, not none - overrides the setup at `plan.md:474`. reason: the user's test repo already had one spec; this exercised both skip reasons.
+- between U5 and U6: `docs/01-overview.md` is renamed `docs/overview.md` in `sdd.md` (lines 15, 34, 57, 80, 189) and in the real-`sdd.md` test in `tests/test_sdd_check.py`; U8 names `docs/overview.md` - overrides `plan.md:60`, `plan.md:197`. reason: it was the only numbered document and the number did no work; user approved, 2026-09-26.
 - U6: the Contradictions bullet adds the example "an Open decisions question with no answer link while an ADR or document already settles it" - overrides `plan.md:510`. reason: generators now append to Open decisions (U4 G1–G5); user approved, 2026-09-26.
+- U6: `argument-hint` is quoted - overrides `plan.md:486`. reason: unquoted, YAML reads `[...]` as a list (as U5); user approved (E2), 2026-09-26.
+- U6: judgment checks fetch a GitHub issue with `gh issue view <n>` - extends `plan.md:509`. reason: the issue is piped only into `sdd-check`, so there was no file for the model to Read; user approved (Q1=A), 2026-09-26.
+- U6: with nothing named, step 1 runs `sdd-check` with no `--doc` and does not ask for a target - extends `plan.md:500`. reason: a bare live run asked which file to check instead of checking `docs/`; user approved (F1), 2026-09-26.
 
 ---
 
@@ -109,23 +113,15 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 
 ### U6 - Update skill
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 0h 30m
 
-**Executes:** `plan.md:479-520 § U6: Update skill`
-
-**Acceptance:** `plan.md:521-523 § U6: Update skill ➔ Done when`; live run `plan.md:599-601 § Verification`
-
-**Decisions:** `plan.md:30 § Agreed (this session) ➔ files and GitHub issues`; `plan.md:34 § Agreed (this session) ➔ live run`; `plan.md:49 § Resolved labels ➔ O4`; `plan.md:35 § Agreed (this session) ➔ main session`; `plan.md:37-38 § Agreed (this session)`; `plan.md:40 § Agreed (this session) ➔ one issue per run`
-
-**Governed by:** `plan.md:10 § Context ➔ hard rule`; `plan.md:81-92 § Conventions`; `plan.md:94-96 § Cross-cutting gotchas`; `plan.md:98-103 § Stop-and-ask triggers`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: Built the update skill from `plan.md:482-519`, with the Contradictions example, quoted `argument-hint`, issue fetch for judgment checks and a no-target run (see U6 Amendments). Acceptance passed per the user's report that all live tests worked as expected (planted contradiction and broken link, `git status` clean until approval, bare run); `claude plugin validate` printed `✔ Validation passed`.
+- Files: Added `plugins/spec-driven-development/skills/update/SKILL.md`. U7 lints it; U8 documents it, including that a bare `/update` checks `docs/` while slices and tasks must be named. Also committed here: the `docs/overview.md` rename in `sdd.md` and `tests/test_sdd_check.py` (see Amendments); U8 must use the new path.
+- Gotchas: With no target and the first wording, the model asked for a file and mentioned a clean working tree, reading `/update` as "check what changed". Slices and tasks have no location in `sdd.md`, so no run finds them unnamed.
+- Decisions made and why: Fetch issues with `gh issue view` rather than rely on the model to think of it; the permission was already allowed. Kept slices and tasks name-only rather than having the skill search for them, because a search rule would be a location `sdd.md` doesn't state (`plan.md:10`).
 
 ---
 
@@ -175,10 +171,10 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U5, done
-- Why stopped: U5 closed at the user's command.
+- Written against: U6, done
+- Why stopped: U6 closed at the user's command.
 - Mid-edit when stopped: none.
 - Open question awaiting an answer: none.
 - Working agreements: “I want to see only the text that changed.” (wording-proposal format; prompted by the U2 `sdd.md` proposal.)
-- Next action: wait for the user's `/roadmap begin` (U6 is unblocked; U7 and U8 wait on U6).
+- Next action: wait for the user's `/roadmap begin` (U7 and U8 are unblocked).
 - Environment: branch `spec-driven-development_stage-1`

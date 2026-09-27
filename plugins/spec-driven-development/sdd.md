@@ -12,7 +12,7 @@ Each entry opens with what the document is for, then where it lives and its size
 **Keep it short.** Each document you write gives a size. A document well over it is usually doing another document's job.
 *Why:* long documents are tedious to review, and more text doesn't make agents follow it any better.
 
-**Headings and links.** A document opens with a heading: its title, or, for a section of a file, the section heading. Each Contains item is a heading one level below it, named as in this file; an item marked optional or "only if" is left out when it doesn't apply. A link is a relative Markdown link to a file or a heading, and its text names what it points at in that section's own words, e.g. `[reliability over speed](../01-overview.md#priorities)`.
+**Headings and links.** A document opens with a heading: its title, or, for a section of a file, the section heading. Each Contains item is a heading one level below it, named as in this file; an item marked optional or "only if" is left out when it doesn't apply. A link is a relative Markdown link to a file or a heading, and its text names what it points at in that section's own words, e.g. `[reliability over speed](../overview.md#priorities)`.
 *Why:* a heading per item gives every item a link target, and a link that names its target can be checked when the target changes.
 
 These documents have a "not" item: Vision's Non-goals, System's Not in the system, a component's Doesn't do, and a slice's and a task's Out of scope. It lists only what a reader might expect or an agent might add, each with where it lives instead or why not.
@@ -31,7 +31,7 @@ These documents have a "not" item: Vision's Non-goals, System's Not in the syste
 ## Vision
 
 What you're building, for whom and why, and how much of it this version includes.
-`docs/01-overview.md`, `## Vision` section. About a page.
+`docs/overview.md`, `## Vision` section. About a page.
 
 **Contains:**
 - **Problem and users:** the problem, told as one specific story of why today's way doesn't work; who has it (you, friends, the public); and what you do today instead.
@@ -54,7 +54,7 @@ What you're building, for whom and why, and how much of it this version includes
 ## System
 
 What the parts are, what each is responsible for, and how they connect.
-`docs/01-overview.md`, `## System` section. One to two pages.
+`docs/overview.md`, `## System` section. One to two pages.
 
 **Contains:**
 - **Components:** each with a one-sentence role, what it owns, where it runs, and, if the user touches it, through what; and a link to its component spec. Name each as a kind, not as how it's built: your phone, not a host; a mobile UI, not its screens; what it has learned, not a graph. How it's built goes in the component spec's Approach; what the user sees goes in slices.
@@ -77,7 +77,7 @@ What the parts are, what each is responsible for, and how they connect.
 ## Open decisions
 
 Questions that need deciding or checking, what would settle each, what each must be settled before, if anything, and a link to each answer.
-`docs/01-overview.md`, `## Open decisions` section, after System. One short entry per question, one line per part.
+`docs/overview.md`, `## Open decisions` section, after System. One short entry per question, one line per part.
 
 **Contains:**
 - **Questions:** a choice not made yet (a technology you mentioned, where something runs) or a risk nobody has checked (feasibility, data, cost); a link to where it came from (a document, or you); if answering it needs a spike (a task that tries something out), what result would settle it; if a document can't be written until it's settled, that document, named in plain text since it may not exist yet (e.g. "needed before: Scraper component spec"); and, for a settled question, a link to its answer: its ADR, or the document it concerns.
@@ -186,7 +186,7 @@ A block in the project's CLAUDE.md, between the lines `<!-- sdd:start -->` and `
 **Derived from:** Vision (Problem and users, Priorities, Non-goals); current ADRs; the documents in `docs/`; the Task entry's Spec link in this file.
 
 **Holds:**
-- The project in one line, with a link to `docs/01-overview.md`.
+- The project in one line, with a link to `docs/overview.md`.
   *Why:* agents know what the project is for without you restating it.
 - Where each document in `docs/` lives, one line each.
   *Why:* agents open the right document; this replaces a code map.
