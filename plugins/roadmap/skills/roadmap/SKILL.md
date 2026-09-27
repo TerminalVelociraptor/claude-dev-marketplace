@@ -125,6 +125,13 @@ walking away mid-unit.
 1. **Check acceptance and report the real result.** Follow the unit's `Acceptance` pointer and run
    or observe what it names. If it fails, the unit stays `in progress`.
 
+   **Don't re-run a pass that is still current.** If you ran the full acceptance check earlier in
+   this session, it passed, and nothing has changed since (no edits by you, and `git status
+   --porcelain` plus `git diff` show nothing new since that run), report that earlier result
+   instead of running the check again. Say that you reused it and what it covered. If you're
+   unsure whether anything changed, run it again. A result from a previous session, a handoff or
+   a subagent's report doesn't count.
+
    **A passing command proves nothing until you know it can fail.** Before trusting a pass, confirm
    the command measures what its prose claims and that its exit status reflects that check rather
    than some later step in a pipeline. A command that cannot fail is not acceptance, and a wrong
@@ -204,7 +211,7 @@ Where the project has no version control, say so once and skip every commit step
 - Never guess at a rotted pointer.
 - Never infer a verb, or act on "checkpoint" said in conversation.
 - Never move a unit to `in progress` outside `/roadmap begin`.
-- Never mark a unit `done` before its acceptance has been checked and passed.
+- Never mark a unit `done` before its acceptance has been checked and passed in its current state.
 - Never write findings from memory of what was planned.
 - Never invent a working agreement.
 - Never `git add -A`, never push, never rebase.
