@@ -2,7 +2,7 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #1_
-_Updated: 2026-09-26 - U7 closed_
+_Updated: 2026-09-26 - U8 closed, plan complete_
 
 ## State
 | Unit | Name | State | Depends on |
@@ -14,7 +14,7 @@ _Updated: 2026-09-26 - U7 closed_
 | U5 | Derive skill | done | U2 |
 | U6 | Update skill | done | U3 |
 | U7 | Skill lint test | done | U4, U5, U6 |
-| U8 | README | not started | U4, U5, U6 |
+| U8 | README | done | U4, U5, U6 |
 
 States: `not started` / `in progress` / `done`
 
@@ -39,6 +39,10 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 - U6: judgment checks fetch a GitHub issue with `gh issue view <n>` - extends `plan.md:509`. reason: the issue is piped only into `sdd-check`, so there was no file for the model to Read; user approved (Q1=A), 2026-09-26.
 - U6: with nothing named, step 1 runs `sdd-check` with no `--doc` and does not ask for a target - extends `plan.md:500`. reason: a bare live run asked which file to check instead of checking `docs/`; user approved (F1), 2026-09-26.
 - U7: the lint test loads `parse_entries` from `bin/sdd-check` - overrides `plan.md:528` (`parse_sdd`). reason: `bin/sdd-check` has no `parse_sdd`; its entry parser is `parse_entries`; user approved, 2026-09-26.
+- U8: the Open decisions sentence says generators add the entries you approve and you keep the rest by hand (R1) - overrides `plan.md:568`. reason: generators now append to Open decisions (U4 G1–G5); user approved, 2026-09-26.
+- U8: "How the generators work" says an unsettled question becomes a proposed Open decisions entry, names the needed-before gate, turns the menu off with `/config` (Challenge menu), and says drafts still wait for keep/revise (R2) - overrides `plan.md:570`, resolves the gotcha at `plan.md:588`. reason: U4 G1–G5 and R1; the `/config` step was already known; user approved, 2026-09-26.
+- U8: the `update` row says a bare run checks every document `sdd.md` gives a location, and slices and tasks must be named (R3) - overrides `plan.md:566`. reason: U6 finding; user approved, 2026-09-26.
+- U8: each command links to its `SKILL.md` and each document name links to its `sdd.md` entry; the `derive` row points at `sdd.md#derived-files` instead of listing them (R4) - overrides `plan.md:559-566`, `plan.md:574-578`. reason: link to where locations and Whys are defined so the README can't go stale; user approved, 2026-09-26.
 
 ---
 
@@ -142,32 +146,24 @@ _Append-only. Where execution diverged from the frozen plan. `none.` until one o
 
 ### U8 - README
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 0h 30m
 
-**Executes:** `plan.md:544-589 § U8: README`
-
-**Acceptance:** `plan.md:590-592 § U8: README ➔ Done when`; plan-wide `plan.md:596-606 § Verification (end to end, after U8)`
-
-**Decisions:** `plan.md:33 § Agreed (this session) ➔ skill name`; `plan.md:52 § Resolved labels ➔ O6`
-
-**Governed by:** `plan.md:10 § Context ➔ hard rule`; `plan.md:98-103 § Stop-and-ask triggers`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: Wrote the README from `plan.md:548-583`, with R1–R4 applied (see U8 Amendments). Acceptance passed: the test suite printed `OK` with the README present, and a README given a copied Why and an `sdd.md` location made both lint checks fail. Each `brief.md:52-57` bullet maps to a section. End to end (`plan.md:596-606`): items 1–2 printed `OK` and `✔ Validation passed`; the user reported that the live runs, items 3–5, all passed.
+- Files: Added `plugins/spec-driven-development/README.md`. All 19 of its links and `sdd.md#…` anchors were checked against the files and against GitHub-style heading slugs.
+- Gotchas: The draft's Open decisions wording predated U4's G1–G5 change and no longer matched the generators. My first R1–R3 line references were one line too early; the Amendments carry the corrected numbers, checked with `sed`.
+- Decisions made and why: The README links each command to its `SKILL.md` and each document name to its `sdd.md` entry rather than restating what they hold, so a change there can't leave the README stale (the user's direction). The `update` row points to "every document `sdd.md` gives a location" rather than naming `docs/`, for the same reason.
 
 ---
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U7, done
-- Why stopped: U7 closed at the user's command.
+- Written against: U8, done; plan complete.
+- Why stopped: U8 closed at the user's command; it was the last unit.
 - Mid-edit when stopped: none.
 - Open question awaiting an answer: none.
 - Working agreements: “I want to see only the text that changed.” (wording-proposal format; prompted by the U2 `sdd.md` proposal.)
-- Next action: wait for the user's `/roadmap begin U8`.
+- Next action: none - plan complete.
 - Environment: branch `spec-driven-development_stage-1`
