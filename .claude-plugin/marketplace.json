@@ -40,6 +40,13 @@
       "description": "Document definitions, interview skills and consistency checks for a solo project, from idea to tasks. Human in the loop; implementation is out of scope.",
       "category": "productivity",
       "tags": ["specs", "planning", "spec-driven-development"]
+    },
+    {
+      "name": "telemetry-mod",
+      "source": "./plugins/telemetry-mod",
+      "description": "Cost and session telemetry as a Claude Code mod: an always-on status band (model, effort, git, context, cost, rate limits, cache), a per-turn cost row split by main thread, subagents and untracked spend, and a /telemetry details pane.",
+      "category": "productivity",
+      "tags": ["cost", "mod", "tokens", "pricing", "rate-limits"]
     }
   ]
 }
