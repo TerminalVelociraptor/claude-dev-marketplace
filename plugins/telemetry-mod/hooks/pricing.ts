@@ -1,9 +1,9 @@
 // What a model request costs, in US dollars.
 //
 // This file is the mod's single source for prices. It holds a rate table and
-// two pure functions: no hooks, no state, nothing that talks to Claude Code.
-// Where it sits: the turn.step hook (register.tsx, U5) hands each request's
-// token counts to ledger.ts, and ledger.ts calls the two functions here to
+// a pure function, priceUsage: no hooks, no state, nothing that talks to
+// Claude Code. Where it sits: the turn.step hook (register.tsx, U5) hands each
+// request's token counts to ledger.ts, and ledger.ts calls priceUsage to
 // price them. Used by: ledger.ts, and the tests in tests/pricing.test.ts.
 //
 // Sources, all read on 2026-10-29:
@@ -62,10 +62,6 @@ export const RATES: Readonly<Record<string, Rates>> = {
   astra: { input: 10, cacheRead: 1, output: 50, cacheWrite: GPT_CACHE_WRITE, tier: GPT_TIER },      // GPT-6 Astra
 }
 
-// The model whose rates Claude Code applies to ids it doesn't know, such as
-// the clodex GPT aliases. Unverified: Claude Code's docs don't name it. U5
-// checks it against Claude Code's own session total.
-export const FALLBACK_MODEL = 'claude-sonnet-5'
 
 // What a Claude cache write costs, as a multiple of the input rate, for each
 // cache lifetime. `as const` keeps the exact keys and values as the type
@@ -79,15 +75,6 @@ export type WriteTtl = keyof typeof CACHE_WRITE_MULTIPLIER
 export function priceUsage(model: string, usage: ModelUsage, ttl: WriteTtl): number | undefined {
   const rates = RATES[model]
   return rates && priceWith(rates, usage, ttl)
-}
-
-// What Claude Code's own total charged for the same request: our price for
-// claude-* ids we know, the fallback model's price for non-claude ids, and
-// undefined for an unknown claude-* id (Claude Code's charge then shows as
-// untracked).
-export function chargedByClaudeCode(model: string, usage: ModelUsage, ttl: WriteTtl): number | undefined {
-  if (model.startsWith('claude-')) return priceUsage(model, usage, ttl)
-  return priceUsage(FALLBACK_MODEL, usage, ttl)
 }
 
 function priceWith(rates: Rates, usage: ModelUsage, ttl: WriteTtl): number {

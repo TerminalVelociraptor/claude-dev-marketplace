@@ -4,7 +4,7 @@
 
 import type { ModelUsage } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
-import { chargedByClaudeCode, priceUsage } from '../hooks/pricing'
+import { priceUsage } from '../hooks/pricing'
 
 // The kit has no toBeCloseTo, so floats are compared to within 1e-9.
 function near(actual: number | undefined, expected: number) {
@@ -53,12 +53,9 @@ test('an unknown claude model has no price', () => {
   expect(priceUsage('claude-unknown-9', u({ input: 1e6 }), '5m')).toBeUndefined()
 })
 
-test('Claude Code charges a non-claude model at the fallback (Sonnet 5) rates', () => {
-  near(chargedByClaudeCode('terra', u({ input: 1e6 }), '5m'), 2)
-})
-
-test('Claude Code charges nothing we can know for an unknown claude model', () => {
-  expect(chargedByClaudeCode('claude-unknown-9', u({ input: 1e6 }), '5m')).toBeUndefined()
+// The live Terra turn of 2026-10-29 (30,674 input, 5 output tokens).
+test('terra: the live turn costs $0.0307 at its own rates', () => {
+  near(priceUsage('terra', u({ input: 30_674, output: 5 }), '1h'), 0.030_699)
 })
 
 // Added: GPT cache writes use OpenAI's fixed 1.25x, whatever Claude's lifetime.

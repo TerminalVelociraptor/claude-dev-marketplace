@@ -2,7 +2,7 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #4_
-_Updated: 2026-10-29 - U4 closed (done)_
+_Updated: 2026-10-29 - U5 closed (done)_
 
 ## State
 | Unit | Name | State | Depends on |
@@ -11,7 +11,7 @@ _Updated: 2026-10-29 - U4 closed (done)_
 | U2 | Pricing and the per-turn ledger (pure) | done | U1 |
 | U3 | Cache estimator (pure) | done | U1 |
 | U4 | Formatting (pure) | done | U1 |
-| U5 | Wiring, state and the per-turn row | not started | U2, U3, U4 |
+| U5 | Wiring, state and the per-turn row | done | U2, U3, U4 |
 | U6 | The band, and the under-the-prompt spike | not started | U5 |
 | U7 | `/telemetry` pane | not started | U4, U5 |
 | U8 | README, final validation, comparison with the old telemetry | not started | U5, U6, U7 |
@@ -31,6 +31,13 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 - U2: `Rates` gains an optional `cacheWrite?: number`, a fixed cache-write multiplier that replaces `CACHE_WRITE_MULTIPLIER[ttl]` when set. The GPT rows set it to 1.25 (OpenAI's default 30-minute write; 12-hour writes are 2.5×), and Claude rows leave it out. - overrides `plan.md:284-287`, `plan.md:306`. reason: OpenAI's cache-write multipliers don't match Claude's 5m/1h ones, so with A1's 1h default the plan's formula would price every GPT write at 2×. Approved by the user 2026-10-29 (Decision 1, option A).
 - U2: `Ledger` counts a request's Claude Code charge in `tracked` only when we priced it too, and a test row covers an unpriced non-claude model. - overrides `plan.md:354`. reason: Claude Code charges an unpriced non-claude model at the fallback rates; under the plan's rule that charge was in `tracked` but in no group, so `total` came out short by it. Approved by the user 2026-10-29.
 - U5: besides the plan's three Opus turns, check the formula and `row` on a turn with a non-claude (clodex GPT) request: its `untracked` must stay under $0.005, which also confirms `FALLBACK_MODEL` (`plan.md:289`, unverified in U2); and read one real clodex log line to find its field names before any log replay. - extends `plan.md:577-590`. reason: U5's done-when covers only plain Opus turns, so nothing checks `FALLBACK_MODEL` or runs `row` on a real turn, which U2 and U4 both left to U5. Requested by the user 2026-10-29.
+- U5: `CacheState`, `Group` and `TurnCost` move into `types/index.d.ts`, deleted from `hooks/cache.ts` and `hooks/ledger.ts`; those two plus `hooks/format.ts` and `tests/format.test.ts` import them from `../types`, with no re-export. - overrides `plan.md:511-513`, `plan.md:515-518`. reason: `claude plugin validate` refuses any import in the contract (`import reaches outside the file; the contract must be self-contained`), so the contract must own the stored-state types; this is the fallback `plan.md:537` names, with its extra files. Approved by the user 2026-10-29 (revised C1, option A).
+- U5: `turn.step` prices a subagent request's cache writes at the 5-minute rate; only main-thread requests use `writeTtl(cache)`. - overrides `plan.md:553`. reason: in the live session (clodex log `20261029-223333541Z-…-pid353507`) Claude Code charged a Haiku subagent's 31,642-token write at 1.25x; at the main thread's 1h the row's parts came to $0.0070 against a $0.0052 total. One subagent request observed. Approved by the user 2026-10-29 (C9).
+- U5: the row shows `untracked` whenever `|untracked| ≥ 0.00005` (prints as at least $0.0001), not from $0.005; `format.ts` and `tests/format.test.ts` changed. - overrides `plan.md:478`. reason: Claude Code makes a request after each turn that the hooks never see (506 input tokens, reading the main cache; likely its prompt suggestion, unverified), which lands in the next turn as `untracked`; hidden under $0.005 it made cheap-model rows not add up ($0.0011 total, $0.0005 main). Approved by the user 2026-10-29 (decision 1, option A).
+- U5: the formula check runs 3 plain Opus turns and passes if each row's `untracked` matches, within $0.0005, the price of the post-turn side request in the clodex proxy log, instead of requiring no `untracked`. - overrides `plan.md:589-590`. reason: that side request costs about $0.01 on Opus, so a correct formula still shows `untracked` on every turn. Approved by the user 2026-10-29 (decision 2, option A).
+- U5: `FALLBACK_MODEL` is `claude-opus-5-5`, not `claude-sonnet-5`; `hooks/pricing.ts` and `tests/pricing.test.ts` changed (fallback test now expects $4/M, plus a test from the live Terra turn). - overrides `plan.md:275`, `plan.md:289`, and G6 (`plan.md:75`). reason: a live Terra turn (30,674 input tokens, clodex log `20261029-223333541Z-…-pid353507`) showed `untracked $0.06`, which only Claude Code charging $4/M input (Opus 5.5) reproduces; Sonnet 5's $2/M predicts $0.0006. Unverified whether it is the built-in or the user's saved default (both Opus 5.5). Approved by the user 2026-10-29 (C8).
+- U5: in a turn with any non-Claude model, `Ledger.close` returns our prices alone: `untracked` undefined, `total` = main + sub, `correction` = our total - Claude Code's delta (0 without one); Claude-only turns are unchanged with `correction` 0. `FALLBACK_MODEL` and `chargedByClaudeCode` are removed; `pricing.ts`, `ledger.ts`, the `TurnCost` comments in `types/index.d.ts`, `tests/pricing.test.ts` and `tests/ledger.test.ts` changed. Supersedes the C8 amendment and the U2 `tracked` amendment. - overrides `plan.md:63` (A2: correction per turn, not per request), `plan.md:275`, `plan.md:289`, `plan.md:354`, G6 (`plan.md:75`). reason: Claude Code's charge for an unknown model isn't a fixed rate: a Terra turn was charged at Opus 5.5 rates in one live session and about $0 in the next (after `/model terra` saved Terra as the default), giving a -$0.08 row. Spend the hooks can't see in such a turn goes uncounted. Approved by the user 2026-10-29 (C10).
+- U5: the formula check (as amended, decision 2A) was verified to the row's printed precision (±$0.005), not ±$0.0005, and the live checks were confirmed from rows pasted as text rather than screenshots. - overrides `plan.md:585`, `plan.md:589-590`. reason: the row prints whole cents above $0.01 and the mod's state is kept only in memory, so no exact `untracked` figure can be read outside the session; each row total also matched the old telemetry and the proxy log at that precision.
 
 ---
 
@@ -100,34 +107,17 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 
 ### U5 - Wiring, state and the per-turn row
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 2h 0m
 
 **Model:** Claude: Opus 5.5 (high) · GPT: Astra (high) - hardest unit: unfamiliar mod API, live-session debugging, formula check.
 
-**Executes:** `plan.md:507-590 § U5: Wiring, state and the per-turn row`
-
-**Acceptance:** `plan.md:577-590 § U5 ➔ Done when`
-
-**Scope limits:** `plan.md:14-18 § Context ➔ Not building or doing`
-
-**Conventions:** `plan.md:20-38 § Conventions`
-
-**Decisions:** `plan.md:44 § Decisions ➔ D2`, `plan.md:46 § Decisions ➔ D10`, `plan.md:49-50 § Decisions ➔ D3, D4`, `plan.md:63-66 § Decisions ➔ A2-A5`
-
-**Gotchas:** `plan.md:70-75 § Cross-cutting gotchas ➔ G1-G6`
-
-**Reference:** `plan.md:79-129 § Reference: patterns proven in the throwaway`
-
-**Stop-and-ask:** `plan.md:143-152 § Stop-and-ask triggers (all units)`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
-
+**Key findings:**
+- Outcome: built the state contract, the six hooks in `register.tsx`, the state accessors in `session.ts` and `tests/register.test.tsx` per `plan.md:507-590`, with the deviations in Amendments (U5 entries: contract ownership of the stored-state types, subagent 5m cache writes, `untracked` shown from $0.00005, the formula-check rule and its precision, and non-Claude turns priced at our rates alone, which replaced the `FALLBACK_MODEL` guess). Acceptance: `tsc` exit 0; `claude plugin test`: 48 pass, 0 fail; `claude plugin validate` exit 0, listing the six hooks and `gating hook with .catch` for both classic hooks. Live session (Opus 5.5): plain turn `~$0.37 · main $0.37 (Opus 5.5: 1 request)` matched the old telemetry; the Haiku subagent turn showed `subagents $0.0040 (Haiku 5.5: 1 agent, 1 request)`; three plain Opus turns' `untracked` matched the post-turn side requests in the clodex proxy log; a Terra turn showed `~$0.0018 · main $0.0018 (Terra: 1 request)`, matching the log.
+- Files: modified `types/index.d.ts` (state contract; now also defines `CacheState`, `Group`, `TurnCost`), `hooks/register.tsx` (the hooks), `hooks/ledger.ts` (non-Claude turn rule; tracked/correction bookkeeping removed), `hooks/pricing.ts` (`FALLBACK_MODEL` and `chargedByClaudeCode` removed), `hooks/format.ts` (`untracked` threshold), `hooks/cache.ts` (imports `CacheState`), and `tests/{format,ledger,pricing}.test.ts`; created `hooks/session.ts` and `tests/register.test.tsx`. U6 and U7 must read and write state only through `session.ts` (`readSnap`, `updateSnap`, `updateTurns`, `sessionUsd`); U7 adds a `readTurns` there for the pane.
+- Gotchas: `claude plugin validate` catches three things `tsc` accepts: an import in the contract (`the contract must be self-contained`), `read`/`update` on an atom defined in another file, and `$` passed into an imported arrow function (it follows `$` across an import only into a `function` declaration). In the test kit, the test's `$` has no `state` noun; a stand-in for a call the mod makes on `$` answers `{ value: … }` while one for a raised event answers its own result; `session.start` needs a stand-in; `Text` drops its `key` in the drawn tree, so find text by `{ type: 'Text', text }`. Claude Code makes requests the hooks never see: after each turn, one of about 506 input tokens reading the main cache (likely its prompt suggestion, unverified), sometimes a second; they land in the next turn's `untracked`, about $0.01 on Opus, and after a GPT turn that side request runs on the GPT model, so a following Claude-only turn carries Claude Code's unpredictable charge for it in `untracked`. Claude Code's charge for an unknown model varied between sessions (Opus 5.5 rates, then about $0 after `/model terra` saved Terra as the default; `/model` always saves the default for new sessions). Subagents write the cache with a 5-minute lifetime, the main thread with 1 hour (two live subagents, one main write). The clodex proxy log has two `response_usage` events per request (`message_start`, then final); take the last per `requestId`. The mod's state is only in memory, so exact figures can't be read from outside the session. A mutation must change what the assertion reads: `main` -> `mainx` slipped past the plan's prefix check.
+- Decisions made and why: `session.ts` keeps the atoms private behind `function`-declaration accessors (C4b), not one atom copy per file, so the state names and shape tags live in one place; a kit test with a negative control showed `readSnap` inside `ui.render` still redraws on `updateSnap`. The contract owns the stored-state types and the hooks import them with no re-export (C1, option A), not duplicate definitions. Non-Claude turns use our prices alone (C10), chosen over a fixed fallback (wrong twice) and over trusting Claude Code's total (wrong for GPT either way); the cost is uncounted side spend in those turns. `untracked` shows from $0.00005 so rows add up (decision 1A). `session.start` doesn't await its first refresh, so git can't delay startup. `tests/register.test.tsx` uses an in-memory compare-and-set state stand-in instead of the plan's bare `state.get` stub, because a get-only stub never lets `update` land. Two edge tests beyond the plan's table (subagent turn end, missing Claude Code total) and one for the subagent lifetime, approved by the user. `Limit.percent` is mapped from the engine's `percentUsed`.
 ---
 
 ### U6 - The band, and the under-the-prompt spike
@@ -248,10 +238,10 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U1, U2, U3, U4 done; U5 not started
-- Why stopped: U4 closed and committed; no unit begun.
+- Written against: U1-U5 done; U6 not started
+- Why stopped: U5 closed and committed; no unit begun.
 - Mid-edit when stopped: nothing.
 - Open question awaiting an answer: none.
-- Working agreements: D9 (Brave search first, `plan.md:45`) and D11 (comments for a reader new to mods and TypeScript, `plan.md:47`) were stated during plan review. On 2026-10-29 the user said of the self-contained C1, C2 change format "this new format is really good and exactly what I want", and approved two edits to the global `CLAUDE.md` (F1, F2) so proposals follow it. Everything else is in the user's CLAUDE.md.
-- Next action: U5 is unblocked (U2, U3, U4 done). Switch to the model on its **Model:** line (Opus 5.5 high), then `/roadmap begin U5`. Read the U5 amendment first.
-- Environment: branch `4-create-telemetry-mod`; the old `telemetry` plugin is still installed and running; the throwaway mod `telemetry-preview` is still on disk (U8 amendment).
+- Working agreements: D9 (Brave search first, `plan.md:45`) and D11 (comments for a reader new to mods and TypeScript, `plan.md:47`) were stated during plan review. Proposals use labelled changes C1, C2, …: on 2026-10-29 the user said of that format "this new format is really good and exactly what I want". On 2026-10-29, after a U5 change list explained changes with plan pointers and implementation detail, the user said "You didn't follow the rules for proposing changes about a sentance or two explaining what each change is and why ... This keeps happening, how do we fix it", and approved F3: each change now gets a `What:` and a `Why:` line, one sentence each, before its code (global `CLAUDE.md`, "Presenting proposed changes"). Everything else is in the user's CLAUDE.md.
+- Next action: U6 is unblocked (U5 done). Switch to the model on its **Model:** line (Opus 5.5 medium), then `/roadmap begin U6`. Read U5's Files and Gotchas first: state goes through `hooks/session.ts`, and the validator's same-file rule for atoms applies to `band.tsx`.
+- Environment: branch `4-create-telemetry-mod`; the old `telemetry` plugin is still installed and running; the throwaway mod `telemetry-preview` is still on disk (U8 amendment); live checks ran in a session started with `claude --plugin-dir plugins/telemetry-mod`; during U5 testing `/model terra` saved Terra as the user's default for new sessions, and the user said they'd deal with it; F3 changed `/home/david/dotfiles/claude/.claude/CLAUDE.md`, uncommitted and outside this repo.

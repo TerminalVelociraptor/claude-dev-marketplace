@@ -4,7 +4,7 @@
 // Where it sits: ledger.ts produces a TurnCost; this file formats it. Used by
 // register.tsx (the per-turn row), band.tsx (U6) and pane.tsx (U7).
 
-import type { TurnCost } from './ledger'
+import type { TurnCost } from '../types'
 
 // 'claude-haiku-4-5-20251001' -> 'Haiku 4.5'; 'terra' -> 'Terra'.
 export function modelName(id: string): string {
@@ -59,7 +59,9 @@ export function row(turn: TurnCost): string {
     const text = entries(turn.sub.models, (m) => `${plural(m.agents.length, 'agent')}, ${plural(m.requests, 'request')}`)
     parts.push(`subagents ${usd(turn.sub.usd)} (${text})`)
   }
-  if (turn.untracked !== undefined && Math.abs(turn.untracked) >= 0.005) {
+  // Shown whenever it prints as non-zero (usd() shows 4 decimals under a cent),
+  // so the parts always add up to the total. Smaller is float noise.
+  if (turn.untracked !== undefined && Math.abs(turn.untracked) >= 0.00005) {
     parts.push(`untracked ${usd(turn.untracked)}`)
   }
   if (turn.unpriced.length) parts.push(`unpriced: ${turn.unpriced.map(modelName).join(', ')}`)

@@ -2,7 +2,7 @@
 // (plan.md:480-497), plus the edges of each threshold.
 
 import { expect, test } from 'claude-code/testing'
-import type { TurnCost } from '../hooks/ledger'
+import type { TurnCost } from '../types'
 import { countdown, modelName, percentColor, row, usd } from '../hooks/format'
 
 const MIN = 60_000
@@ -65,11 +65,11 @@ test('row groups by thread, sorts by cost and shows untracked spend (D3)', () =>
   )
 })
 
-test('row hides tiny untracked spend and says "1 request"', () => {
+test('row hides untracked spend too small to print and says "1 request"', () => {
   const t = turn({
     total: 0.05,
     main: { usd: 0.05, models: { 'claude-opus-5-5': { usd: 0.05, requests: 1, agents: [] } } },
-    untracked: 0.001,
+    untracked: 0.00004,
   })
   expect(row(t)).toBe('~$0.05 this turn · main $0.05 (Opus 5.5: 1 request)')
 })
@@ -79,9 +79,10 @@ test('row lists unpriced models when untracked is unknown', () => {
   expect(row(t).endsWith(' · unpriced: X 1')).toBe(true)
 })
 
-test('row shows untracked from half a cent up, not below', () => {
-  expect(row(turn({ total: 0.005, untracked: 0.005 }))).toContain('untracked $0.0050')
-  expect(row(turn({ total: 0.0049, untracked: 0.0049 }))).not.toContain('untracked')
+test('row shows untracked from $0.00005 up (prints as $0.0001), not below', () => {
+  expect(row(turn({ total: 0.00005, untracked: 0.00005 }))).toContain('untracked $0.0001')
+  expect(row(turn({ total: 0.0000499, untracked: 0.0000499 }))).not.toContain('untracked')
+  expect(row(turn({ total: -0.00005, untracked: -0.00005 }))).toContain('untracked -$0.0001')
 })
 
 test('percentColor switches at 50 and 80', () => {

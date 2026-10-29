@@ -15,22 +15,11 @@
 // never changes its input.
 
 import type { ModelUsage } from 'claude-code'
+// CacheState describes saved state, so it lives in the state contract.
+import type { CacheState } from '../types'
 
 const FIVE_MIN = 300_000
 const ONE_HOUR = 3_600_000
-
-// A union type: ttlSource can only be one of these three strings, so a typo fails to compile.
-//   assumed — the 1h default, nothing seen yet
-//   learned — worked out from the gap between two requests
-//   switch  — told to us by a model switch, so never overridden by learning
-// Fields ending in `?` may be missing (undefined).
-export type CacheState = {
-  model?: string      // session model the estimate is for
-  ttlMs: number       // 3_600_000 or 300_000
-  ttlSource: 'assumed' | 'learned' | 'switch'
-  lastAt?: number     // ms epoch of the last main-thread request that read or wrote the cache
-  hitRatio?: number   // that request's cache reads / prompt tokens, 0..1
-}
 
 // Default lifetime is 1 hour until evidence says otherwise (A1).
 export const INITIAL: CacheState = { ttlMs: ONE_HOUR, ttlSource: 'assumed' }

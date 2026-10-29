@@ -3,8 +3,11 @@
 // A Ledger collects every model request of one turn (main thread and
 // subagents alike), priced by pricing.ts. When the turn ends, close() compares
 // that with how much Claude Code's own session total grew, so spend this file
-// can't see (fast mode, web search fees, unknown models) shows up as
-// "untracked" instead of disappearing. Pure: no hooks, no state.
+// can't see (fast mode, web search fees, unknown models, requests the hooks
+// never see) shows up as "untracked" instead of disappearing. Except in a turn
+// with a non-Claude model: there Claude Code's total includes its own price
+// for that model, which can't be predicted, so our prices stand in for it.
+// Pure: no hooks, no state.
 // Where it sits: register.tsx (U5) keeps one Ledger in a module variable,
 // adds to it from the turn.step hook and closes it in turn.complete; format.ts
 // (U4) turns the TurnCost into the per-turn row. Used by: register.tsx and
@@ -12,30 +15,17 @@
 
 import type { ModelUsage } from 'claude-code'
 // `type WriteTtl` imports a type only; it disappears from the compiled code.
-import { chargedByClaudeCode, priceUsage, type WriteTtl } from './pricing'
+import { priceUsage, type WriteTtl } from './pricing'
+// Group and TurnCost describe saved state, so they live in the state contract.
+import type { Group, TurnCost } from '../types'
 
 // One model request. agentId is undefined on the main thread and a
 // subagent's id otherwise; the `?` makes the field optional.
 export type Request = { model: string; agentId?: string; usage: ModelUsage }
 
-// The cost of one thread (main or subagents) in a turn, with a per-model
-// breakdown. `agents` lists the distinct subagent ids that used the model.
-export type Group = { usd: number; models: Record<string, { usd: number; requests: number; agents: string[] }> }
-
-export type TurnCost = {
-  total: number                  // main.usd + sub.usd + (untracked ?? 0)
-  main: Group
-  sub: Group
-  untracked?: number             // undefined when Claude Code's total was unavailable
-  correction: number             // sum of (our price - Claude Code's charge) for priced non-claude requests
-  unpriced: string[]             // model ids with no rates, sorted, unique
-}
-
 export class Ledger {
   private main = emptyGroup()
   private sub = emptyGroup()
-  private tracked = 0            // what Claude Code charged for the requests we priced
-  private correction = 0
   private unpriced = new Set<string>()
   private requests = 0
 
@@ -59,36 +49,30 @@ export class Ledger {
       entry.usd += ours
       group.usd += ours
     }
-
-    const charged = chargedByClaudeCode(request.model, request.usage, ttl)
-    // Only requests we priced count as tracked. Claude Code still charges an
-    // unpriced non-claude model (at the fallback rates), and leaving that out
-    // of tracked lets it show up in untracked instead of vanishing.
-    if (ours !== undefined && charged !== undefined) this.tracked += charged
-    // Claude Code prices non-claude models at the fallback model's rates, so
-    // its session total is off by this much; the session figure adds it back (A2).
-    if (ours !== undefined && charged !== undefined && !request.model.startsWith('claude-')) {
-      this.correction += ours - charged
-    }
   }
 
   // Ends the turn. claudeCodeDelta is how much Claude Code's session total
   // grew over the turn, or undefined when it wasn't available. Returns the
   // turn's cost and starts a fresh turn.
   close(claudeCodeDelta: number | undefined): TurnCost {
-    const untracked = claudeCodeDelta === undefined ? undefined : claudeCodeDelta - this.tracked
-    const turn: TurnCost = {
-      total: this.main.usd + this.sub.usd + (untracked ?? 0),
-      main: this.main,
-      sub: this.sub,
-      untracked,
-      correction: this.correction,
-      unpriced: [...this.unpriced].sort(),
+    const ours = this.main.usd + this.sub.usd
+    const models = [...Object.keys(this.main.models), ...Object.keys(this.sub.models)]
+    const base = { main: this.main, sub: this.sub, unpriced: [...this.unpriced].sort() }
+    let turn: TurnCost
+    if (models.some((m) => !m.startsWith('claude-'))) {
+      // Claude Code prices models it doesn't know at rates we can't predict
+      // (Opus 5.5's in one live session, about nothing in the next), so its
+      // total says nothing reliable about this turn. Our prices stand in, and
+      // `correction` swaps Claude Code's amount for ours in the session figure
+      // (A2). Spend the hooks can't see goes uncounted in this turn.
+      const correction = claudeCodeDelta === undefined ? 0 : ours - claudeCodeDelta
+      turn = { ...base, total: ours, untracked: undefined, correction }
+    } else {
+      const untracked = claudeCodeDelta === undefined ? undefined : claudeCodeDelta - ours
+      turn = { ...base, total: ours + (untracked ?? 0), untracked, correction: 0 }
     }
     this.main = emptyGroup()
     this.sub = emptyGroup()
-    this.tracked = 0
-    this.correction = 0
     this.unpriced = new Set()
     this.requests = 0
     return turn
