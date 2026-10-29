@@ -2,7 +2,7 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #4_
-_Updated: 2026-10-29 - U3 closed (done)_
+_Updated: 2026-10-29 - U4 closed (done)_
 
 ## State
 | Unit | Name | State | Depends on |
@@ -10,7 +10,7 @@ _Updated: 2026-10-29 - U3 closed (done)_
 | U1 | Scaffold the plugin and the repo rules | done | - |
 | U2 | Pricing and the per-turn ledger (pure) | done | U1 |
 | U3 | Cache estimator (pure) | done | U1 |
-| U4 | Formatting (pure) | not started | U1 |
+| U4 | Formatting (pure) | done | U1 |
 | U5 | Wiring, state and the per-turn row | not started | U2, U3, U4 |
 | U6 | The band, and the under-the-prompt spike | not started | U5 |
 | U7 | `/telemetry` pane | not started | U4, U5 |
@@ -30,6 +30,7 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 - U2: the GPT rows price the models the user set on 2026-10-29: `astra` = GPT-6 Astra, `luna` = GPT-6 Luna, `sol` = GPT-6.1 Sol, `terra` = GPT-6.1 Terra. This supersedes the alias list in the first U2 amendment (`sol` was GPT-6 Sol, `terra` GPT-5.6 Terra). - overrides `plan.md:268`, `plan.md:320-323`. reason: the user updated their model config; this session's Agent tool list still shows the old mapping, so the user's statement is the source.
 - U2: `Rates` gains an optional `cacheWrite?: number`, a fixed cache-write multiplier that replaces `CACHE_WRITE_MULTIPLIER[ttl]` when set. The GPT rows set it to 1.25 (OpenAI's default 30-minute write; 12-hour writes are 2.5×), and Claude rows leave it out. - overrides `plan.md:284-287`, `plan.md:306`. reason: OpenAI's cache-write multipliers don't match Claude's 5m/1h ones, so with A1's 1h default the plan's formula would price every GPT write at 2×. Approved by the user 2026-10-29 (Decision 1, option A).
 - U2: `Ledger` counts a request's Claude Code charge in `tracked` only when we priced it too, and a test row covers an unpriced non-claude model. - overrides `plan.md:354`. reason: Claude Code charges an unpriced non-claude model at the fallback rates; under the plan's rule that charge was in `tracked` but in no group, so `total` came out short by it. Approved by the user 2026-10-29.
+- U5: besides the plan's three Opus turns, check the formula and `row` on a turn with a non-claude (clodex GPT) request: its `untracked` must stay under $0.005, which also confirms `FALLBACK_MODEL` (`plan.md:289`, unverified in U2); and read one real clodex log line to find its field names before any log replay. - extends `plan.md:577-590`. reason: U5's done-when covers only plain Opus turns, so nothing checks `FALLBACK_MODEL` or runs `row` on a real turn, which U2 and U4 both left to U5. Requested by the user 2026-10-29.
 
 ---
 
@@ -83,29 +84,17 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 
 ### U4 - Formatting (pure)
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 0h 30m
 
 **Model:** Claude: Haiku 5.5 (high) · GPT: Sol (low) - pure functions with an exact spec and tests; step up to Sonnet 5.5 if tests fail twice.
 
-**Executes:** `plan.md:446-503 § U4: Formatting (pure)`
-
-**Acceptance:** `plan.md:503 § U4 ➔ Done when`
-
-**Scope limits:** `plan.md:14-18 § Context ➔ Not building or doing`
-
-**Conventions:** `plan.md:20-38 § Conventions`
-
-**Decisions:** `plan.md:49 § Decisions ➔ D3`, `plan.md:53 § Decisions ➔ D7`
-
-**Stop-and-ask:** `plan.md:143-152 § Stop-and-ask triggers (all units)`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: built `hooks/format.ts` (`modelName`, `usd`, `countdown`, `row`, `percentColor`) and `tests/format.test.ts` (9 tests) per `plan.md:446-503`; no deviations. `claude plugin test plugins/telemetry-mod`: 40 pass, 0 fail, exit 0 (31 from U1-U3 plus 9 new); `tsc -p plugins/telemetry-mod` exit 0. With `p < 50` mutated to `p <= 50` in a scratch copy, the `percentColor` test fails and the run exits 1.
+- Files: created `plugins/telemetry-mod/hooks/format.ts` and `plugins/telemetry-mod/tests/format.test.ts`. U5 calls `row(turn)` with the `TurnCost` from `Ledger.close`; U6 and U7 use `countdown`, `usd`, `modelName` and `percentColor`.
+- Gotchas: the tsconfig makes an array destructure's first element possibly `undefined` (TS18048), so `modelName` writes `const [family = '', ...version]`. `row` was only run on usage numbers made up for the check, not on a real turn: the clodex logs under `~/.clodex/logs/sessions/` did not match the field names tried (not investigated), so the real-turn check is left to U5 (see Amendments).
+- Decisions made and why: `row` sorts entries by usd descending, then by `modelName` with `localeCompare` (the plan says "by name" only). Edge tests were added beyond the plan's table: `usd` at 0.01 and 0.0099, `countdown` at 59,999 and 60,000, `untracked` at 0.005 and 0.0049, `percentColor` at 79.9. Both approved by the user 2026-10-29.
 
 ---
 
@@ -259,10 +248,10 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U1, U2, U3 done; U4 not started
-- Why stopped: U3 closed and committed; no unit begun.
+- Written against: U1, U2, U3, U4 done; U5 not started
+- Why stopped: U4 closed and committed; no unit begun.
 - Mid-edit when stopped: nothing.
 - Open question awaiting an answer: none.
 - Working agreements: D9 (Brave search first, `plan.md:45`) and D11 (comments for a reader new to mods and TypeScript, `plan.md:47`) were stated during plan review. On 2026-10-29 the user said of the self-contained C1, C2 change format "this new format is really good and exactly what I want", and approved two edits to the global `CLAUDE.md` (F1, F2) so proposals follow it. Everything else is in the user's CLAUDE.md.
-- Next action: U4 is unblocked (U5 needs it). Switch to the model on its **Model:** line (Haiku 5.5 high), then `/roadmap begin U4`.
-- Environment: branch `4-create-telemetry-mod`; the old `telemetry` plugin is still installed and running; the throwaway mod `telemetry-preview` is still on disk (U8 amendment); the scratch copy used for the U3 mutation check is in the session scratchpad.
+- Next action: U5 is unblocked (U2, U3, U4 done). Switch to the model on its **Model:** line (Opus 5.5 high), then `/roadmap begin U5`. Read the U5 amendment first.
+- Environment: branch `4-create-telemetry-mod`; the old `telemetry` plugin is still installed and running; the throwaway mod `telemetry-preview` is still on disk (U8 amendment).
