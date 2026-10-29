@@ -2,13 +2,13 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #4_
-_Updated: 2026-10-29 - U1 closed (done)_
+_Updated: 2026-10-29 - U2 closed (done)_
 
 ## State
 | Unit | Name | State | Depends on |
 |---|---|---|---|
 | U1 | Scaffold the plugin and the repo rules | done | - |
-| U2 | Pricing and the per-turn ledger (pure) | not started | U1 |
+| U2 | Pricing and the per-turn ledger (pure) | done | U1 |
 | U3 | Cache estimator (pure) | not started | U1 |
 | U4 | Formatting (pure) | not started | U1 |
 | U5 | Wiring, state and the per-turn row | not started | U2, U3, U4 |
@@ -27,6 +27,9 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 - U1: `types/index.d.ts` stub exports `type Snapshot = {}` and declares `'telemetry-mod': { snap: Shaped<Snapshot> }`, with no `export {}`. - overrides `plan.md:196-204`. reason: the validator rejects `export {}` (a contract may export only types); a real `export type` also makes the file a module so the `declare module` block augments instead of redefining. U5 replaces `Snapshot`. Approved by the user 2026-10-29.
 - U1: to generate `plugins/telemetry-mod/.claude-plugin/types/`, load the repo folder with `claude --plugin-dir plugins/telemetry-mod` instead of `/plugin install telemetry-mod@dev-toolkits` + `/reload-plugins`. - overrides `plan.md:238`. reason: the marketplace install loaded a cached copy under `~/.claude/plugins/cache/` and generated no types folder in the repo (G8's stop condition); the cached copy was uninstalled. Approved by the user 2026-10-29.
 - U8: at the end, remove the throwaway mod folder `/home/david/.claude/dev-mods/b494e4d3-f092-4319-a6e5-921df7fbf4bf/telemetry-preview/` (ask before deleting; it is outside git). Kept until then as a reference. - extends `plan.md:687-773`. reason: the plan's final unit has no cleanup step.
+- U2: the GPT rows price the models the user set on 2026-10-29: `astra` = GPT-6 Astra, `luna` = GPT-6 Luna, `sol` = GPT-6.1 Sol, `terra` = GPT-6.1 Terra. This supersedes the alias list in the first U2 amendment (`sol` was GPT-6 Sol, `terra` GPT-5.6 Terra). - overrides `plan.md:268`, `plan.md:320-323`. reason: the user updated their model config; this session's Agent tool list still shows the old mapping, so the user's statement is the source.
+- U2: `Rates` gains an optional `cacheWrite?: number`, a fixed cache-write multiplier that replaces `CACHE_WRITE_MULTIPLIER[ttl]` when set. The GPT rows set it to 1.25 (OpenAI's default 30-minute write; 12-hour writes are 2.5×), and Claude rows leave it out. - overrides `plan.md:284-287`, `plan.md:306`. reason: OpenAI's cache-write multipliers don't match Claude's 5m/1h ones, so with A1's 1h default the plan's formula would price every GPT write at 2×. Approved by the user 2026-10-29 (Decision 1, option A).
+- U2: `Ledger` counts a request's Claude Code charge in `tracked` only when we priced it too, and a test row covers an unpriced non-claude model. - overrides `plan.md:354`. reason: Claude Code charges an unpriced non-claude model at the fallback rates; under the plan's rule that charge was in `tracked` but in no group, so `total` came out short by it. Approved by the user 2026-10-29.
 
 ---
 
@@ -48,31 +51,17 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 
 ### U2 - Pricing and the per-turn ledger (pure)
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 0h 30m
 
 **Model:** Claude: Opus 5.5 (high) · GPT: Sol (high) - pricing research plus exact arithmetic; mistakes here skew every cost row.
 
-**Executes:** `plan.md:250-381 § U2: Pricing and the per-turn ledger (pure)`
-
-**Acceptance:** `plan.md:379-381 § U2 ➔ Done when`
-
-**Scope limits:** `plan.md:14-18 § Context ➔ Not building or doing`
-
-**Conventions:** `plan.md:20-38 § Conventions`
-
-**Decisions:** `plan.md:44-45 § Decisions ➔ D2, D9`, `plan.md:57 § Decisions ➔ X1`, `plan.md:62-63 § Decisions ➔ A1, A2`, `plan.md:66 § Decisions ➔ A5`
-
-**Gotchas:** `plan.md:74-76 § Cross-cutting gotchas ➔ G5, G6, G7`
-
-**Stop-and-ask:** `plan.md:143-152 § Stop-and-ask triggers (all units)`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: built `hooks/pricing.ts` (12-row `RATES`, `priceUsage`, `chargedByClaudeCode`) and `hooks/ledger.ts` (`Ledger`) per `plan.md:282-357`, with three deviations (Amendments: U2 alias mapping, `cacheWrite`, `tracked` rule). Every rate row and formula facts 1-5 were checked against Anthropic's and OpenAI's pricing pages on 2026-10-29 (sources in `pricing.ts`'s header); fact 5, the fallback model, is unverified. `claude plugin test plugins/telemetry-mod`: 16 pass, 0 fail, exit 0 (exits 1 with a rate or the tier rule mutated); `tsc -p plugins/telemetry-mod` exit 0.
+- Files: created `plugins/telemetry-mod/hooks/{pricing.ts,ledger.ts}` and `plugins/telemetry-mod/tests/{pricing.test.ts,ledger.test.ts}` (11 and 5 tests). U4 reads `ledger.ts` for the `TurnCost` shape. U5 reads `ledger.ts` (`add` takes the cache lifetime per request, because `close` has none) and `pricing.ts` (`FALLBACK_MODEL` is what its check against Claude Code's total must confirm).
+- Gotchas: `tsc` rejects `.ts` in import paths (TS5097); import without the extension, which both `tsc` and `claude plugin test` accept. The test kit has no `toBeCloseTo`; each test file has a `near()` helper. GPT prompt length counts cache-write tokens, so a 1M-token write trips the 272K tier. clodex 2.21.4 on the `openai-oauth` route never reports GPT cache writes (0 of 1,556 GPT requests across 278 logs in `~/.clodex/logs/sessions/`; reads on 1,341): written tokens arrive inside `input_tokens`, so GPT cost reads low by 0.25x input rate on them, and `cacheWrite` is inert there. The log fields are camelCase (`cacheCreationInputTokens`); a snake_case grep finds nothing. `openai-oauth` is a ChatGPT sign-in, so GPT figures are API-equivalent, not billed. Fallback evidence conflicts with G6: `github.com/abundant-ai/harbor/pull/139` (Claude Code 2.1.285) says unknown ids are priced at "the default model's rate" ($5/M in its example), and the engine types say only "the default tier was assumed" (`.claude-plugin/types/claude-code/index.d.ts:8069`).
+- Decisions made and why: published rates replace the plan's starting values where they differ: `claude-sonnet-5-5` cache read 0.20 -> 0.10, `claude-haiku-5-5` cache read (X1) = 0.01, `terra` (GPT-6.1 Terra) 2/0.20/12 -> 1/0.05/5, `sol` (GPT-6.1 Sol) cache read 0.20 -> 0.10; Terra's two test expectations changed to 8.1 and 0.272 (`plan.md:381` allows it). `FALLBACK_MODEL` stays `claude-sonnet-5`, marked unverified, per `plan.md:275`, so U5's check against real totals settles it rather than third-party evidence. `cacheWrite` is kept although inert on `openai-oauth`, so GPT writes price correctly if clodex starts receiving write counts. Two test rows were added beyond the plan's table (Terra's fixed write multiplier; Haiku 5.5's tier counting cache reads), plus one for the `tracked` amendment, to cover rules the table didn't. The validation table itself was reported in the session, not saved to a file.
 
 ---
 
@@ -282,10 +271,10 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U1 done; U2, U3, U4 not started
-- Why stopped: U1 closed and committed; no unit begun.
+- Written against: U1, U2 done; U3, U4 not started
+- Why stopped: U2 closed and committed; no unit begun.
 - Mid-edit when stopped: nothing.
 - Open question awaiting an answer: none.
 - Working agreements: D9 (Brave search first, `plan.md:45`) and D11 (comments for a reader new to mods and TypeScript, `plan.md:47`) were stated during plan review; everything else is in the user's CLAUDE.md.
-- Next action: U2, U3 and U4 are now unblocked. Switch to the model on the chosen unit's **Model:** line (U2: Opus 5.5 high or Sol high), then `/roadmap begin <unit>`.
-- Environment: branch `4-create-telemetry-mod`; the mod folder `plugins/telemetry-mod` has its types generated (gitignored); the marketplace install was removed; the old `telemetry` plugin is still installed and running; the throwaway mod `telemetry-preview` is still on disk (U8 amendment).
+- Next action: U3 and U4 are unblocked (U5 needs both). Switch to the model on the chosen unit's **Model:** line (U3: Sonnet 5.5 medium; U4: Haiku 5.5 high), then `/roadmap begin <unit>`.
+- Environment: branch `4-create-telemetry-mod`; the old `telemetry` plugin is still installed and running; the throwaway mod `telemetry-preview` is still on disk (U8 amendment); the scratch copies used for mutation checks were deleted.
