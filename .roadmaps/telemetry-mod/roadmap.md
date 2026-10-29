@@ -2,14 +2,14 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #4_
-_Updated: 2026-10-29 - U2 closed (done)_
+_Updated: 2026-10-29 - U3 closed (done)_
 
 ## State
 | Unit | Name | State | Depends on |
 |---|---|---|---|
 | U1 | Scaffold the plugin and the repo rules | done | - |
 | U2 | Pricing and the per-turn ledger (pure) | done | U1 |
-| U3 | Cache estimator (pure) | not started | U1 |
+| U3 | Cache estimator (pure) | done | U1 |
 | U4 | Formatting (pure) | not started | U1 |
 | U5 | Wiring, state and the per-turn row | not started | U2, U3, U4 |
 | U6 | The band, and the under-the-prompt spike | not started | U5 |
@@ -67,29 +67,17 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 
 ### U3 - Cache estimator (pure)
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 0h 30m
 
 **Model:** Claude: Sonnet 5.5 (medium) · GPT: Sol (medium) - small algorithm, fully specified with a test table.
 
-**Executes:** `plan.md:385-442 § U3: Cache estimator (pure)`
-
-**Acceptance:** `plan.md:442 § U3 ➔ Done when`
-
-**Scope limits:** `plan.md:14-18 § Context ➔ Not building or doing`
-
-**Conventions:** `plan.md:20-38 § Conventions`
-
-**Decisions:** `plan.md:54 § Decisions ➔ D8`, `plan.md:62 § Decisions ➔ A1`
-
-**Stop-and-ask:** `plan.md:143-152 § Stop-and-ask triggers (all units)`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: built `hooks/cache.ts` (`CacheState`, `INITIAL`, `observe`, `switched`, `resumed`, `view`, `writeTtl`) and `tests/cache.test.ts` (15 tests: one per row of `plan.md:426-437`, plus 4 boundary rows) per `plan.md:385-442`; no deviations. `claude plugin test plugins/telemetry-mod`: 31 pass, 0 fail, exit 0 (16 from U2 plus 15 new); `tsc -p plugins/telemetry-mod` exit 0. With `FIVE_MIN` mutated to 600,000 in a scratch copy, 4 cache tests fail; with the two boundary comparisons loosened (`>` to `>=`, `<` to `<=`), the 2 gap-boundary tests fail; both runs exit 1. Replaying 3,676 real Claude requests (81 sessions in `~/.clodex/logs/sessions/`) through `cache.ts`: a `warm` prediction was followed by a cache read 3,559 of 3,578 times, 35 sessions learned 1h and none 5m.
+- Files: created `plugins/telemetry-mod/hooks/cache.ts` and `plugins/telemetry-mod/tests/cache.test.ts`. U5 reads `cache.ts`: `observe`/`switched`/`resumed` take and return a `CacheState` (state it keeps), `view` returns a union on `kind` (`none`/`cold`/`warm`), and `writeTtl` gives pricing's `'5m' | '1h'`. U6 and U7 call `view`.
+- Gotchas: the plan's new-model rule `s.ttlSource === 'switch' ? 'switch' : s.ttlSource` is a no-op, so the code uses `s.ttlSource`. The plan uses `promptTokens` without defining it; the code uses `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`. An out-of-order time (`at` earlier than `lastAt`) gives a negative gap, so nothing is learned and no special case exists. `switched` drops `hitRatio` as well as `lastAt`, so right after a switch `view` is `none`, not `cold`. The replay's limits: no real data reaches the 5m learning branch (these logs have no 5-minute cache), main thread was approximated as each session's most frequent non-Haiku model, GPT routes were excluded, and the 19 warm-but-no-read requests were not investigated. The plan's `read`/`creation` shorthand maps to `cache_read_input_tokens`/`cache_creation_input_tokens`.
+- Decisions made and why: learning the 1h lifetime has no `ttlSource` guard (a `learned` 5m can flip to 1h), because a read after more than 5 minutes proves 1h. Learning the 5m lifetime only runs from `assumed`, so evidence for 1h is never overwritten by a single rewrite. Tests build `ModelUsage` with a `u({read, creation})` helper like `pricing.test.ts`, so the table's shorthand reads the same in both files. Four boundary tests (gap of exactly 5 minutes and exactly 1 hour, two `resumed` edge cases) were added beyond the plan's table, at the user's request, after the first close, because real data never exercises the learning branches and the plan's table skipped the edges.
 
 ---
 
@@ -271,10 +259,10 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U1, U2 done; U3, U4 not started
-- Why stopped: U2 closed and committed; no unit begun.
+- Written against: U1, U2, U3 done; U4 not started
+- Why stopped: U3 closed and committed; no unit begun.
 - Mid-edit when stopped: nothing.
 - Open question awaiting an answer: none.
-- Working agreements: D9 (Brave search first, `plan.md:45`) and D11 (comments for a reader new to mods and TypeScript, `plan.md:47`) were stated during plan review; everything else is in the user's CLAUDE.md.
-- Next action: U3 and U4 are unblocked (U5 needs both). Switch to the model on the chosen unit's **Model:** line (U3: Sonnet 5.5 medium; U4: Haiku 5.5 high), then `/roadmap begin <unit>`.
-- Environment: branch `4-create-telemetry-mod`; the old `telemetry` plugin is still installed and running; the throwaway mod `telemetry-preview` is still on disk (U8 amendment); the scratch copies used for mutation checks were deleted.
+- Working agreements: D9 (Brave search first, `plan.md:45`) and D11 (comments for a reader new to mods and TypeScript, `plan.md:47`) were stated during plan review. On 2026-10-29 the user said of the self-contained C1, C2 change format "this new format is really good and exactly what I want", and approved two edits to the global `CLAUDE.md` (F1, F2) so proposals follow it. Everything else is in the user's CLAUDE.md.
+- Next action: U4 is unblocked (U5 needs it). Switch to the model on its **Model:** line (Haiku 5.5 high), then `/roadmap begin U4`.
+- Environment: branch `4-create-telemetry-mod`; the old `telemetry` plugin is still installed and running; the throwaway mod `telemetry-preview` is still on disk (U8 amendment); the scratch copy used for the U3 mutation check is in the session scratchpad.
