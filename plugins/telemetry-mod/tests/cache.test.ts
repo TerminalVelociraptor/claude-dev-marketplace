@@ -18,8 +18,12 @@ function u(t: { input?: number; read?: number; creation?: number }): ModelUsage 
   }
 }
 
-test('a fresh state shows nothing', () => {
-  expect(view(INITIAL, T0)).toEqual({ kind: 'none' })
+test('a fresh state is cold', () => {
+  expect(view(INITIAL, T0)).toEqual({ kind: 'cold' })
+})
+
+test('a model switch is cold until the next request', () => {
+  expect(view(switched(INITIAL, 'claude-sonnet-5-5', '1h'), T0)).toEqual({ kind: 'cold' })
 })
 
 test('one request with cache activity is warm, with an assumed 1h lifetime', () => {

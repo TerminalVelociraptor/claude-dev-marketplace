@@ -10,7 +10,8 @@
 //   cache.ts            the prompt-cache estimate
 //   format.ts           the strings the row, band and pane show
 //   ../types/index.d.ts the shape of the saved state
-//   band.tsx (U6) and pane.tsx (U7) draw from the saved state.
+//   band.tsx            what the band shows
+//   pane.tsx (U7) draws from the saved state.
 //
 // Every hook has the shape `($, e, next)`: `$` is how the mod calls Claude
 // Code, `e` is the event, and `next(e)` passes the event on to the rest of the
@@ -19,6 +20,7 @@
 
 import type { EngineInterface, Register, SessionRateLimit, Timer } from 'claude-code'
 import type { Limit } from '../types'
+import { bandTree } from './band'
 import { observe, resumed, switched, writeTtl } from './cache'
 import { modelName, row } from './format'
 import { Ledger } from './ledger'
@@ -186,5 +188,16 @@ export const register: Register = (on) => {
       ccTotal: e.cost?.usd ?? s.ccTotal,
     })).catch(ignore)
     return next(e)
+  })
+
+  // The band above the prompt. Reading the snapshot inside a ui.render hook
+  // makes Claude Code redraw the band whenever the snapshot changes. Nothing
+  // to show before the first refresh, and a survey takes the band's place
+  // while it is up.
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (e.props.hasSurvey) return next(e)
+    const s = await readSnap($)
+    if (s.model === '') return next(e)
+    return bandTree($.ui.resolve(e), s, await $.clock.now())
   })
 }

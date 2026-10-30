@@ -2,7 +2,7 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #4_
-_Updated: 2026-10-29 - U5 closed (done)_
+_Updated: 2026-10-30 - U6 closed (done)_
 
 ## State
 | Unit | Name | State | Depends on |
@@ -12,7 +12,7 @@ _Updated: 2026-10-29 - U5 closed (done)_
 | U3 | Cache estimator (pure) | done | U1 |
 | U4 | Formatting (pure) | done | U1 |
 | U5 | Wiring, state and the per-turn row | done | U2, U3, U4 |
-| U6 | The band, and the under-the-prompt spike | not started | U5 |
+| U6 | The band, and the under-the-prompt spike | done | U5 |
 | U7 | `/telemetry` pane | not started | U4, U5 |
 | U8 | README, final validation, comparison with the old telemetry | not started | U5, U6, U7 |
 | U9 | Rewrite the repo rules for scripts and mods | not started | U1, U2, U3, U4, U5, U6, U7, U8 |
@@ -38,6 +38,9 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 - U5: `FALLBACK_MODEL` is `claude-opus-5-5`, not `claude-sonnet-5`; `hooks/pricing.ts` and `tests/pricing.test.ts` changed (fallback test now expects $4/M, plus a test from the live Terra turn). - overrides `plan.md:275`, `plan.md:289`, and G6 (`plan.md:75`). reason: a live Terra turn (30,674 input tokens, clodex log `20261029-223333541Z-…-pid353507`) showed `untracked $0.06`, which only Claude Code charging $4/M input (Opus 5.5) reproduces; Sonnet 5's $2/M predicts $0.0006. Unverified whether it is the built-in or the user's saved default (both Opus 5.5). Approved by the user 2026-10-29 (C8).
 - U5: in a turn with any non-Claude model, `Ledger.close` returns our prices alone: `untracked` undefined, `total` = main + sub, `correction` = our total - Claude Code's delta (0 without one); Claude-only turns are unchanged with `correction` 0. `FALLBACK_MODEL` and `chargedByClaudeCode` are removed; `pricing.ts`, `ledger.ts`, the `TurnCost` comments in `types/index.d.ts`, `tests/pricing.test.ts` and `tests/ledger.test.ts` changed. Supersedes the C8 amendment and the U2 `tracked` amendment. - overrides `plan.md:63` (A2: correction per turn, not per request), `plan.md:275`, `plan.md:289`, `plan.md:354`, G6 (`plan.md:75`). reason: Claude Code's charge for an unknown model isn't a fixed rate: a Terra turn was charged at Opus 5.5 rates in one live session and about $0 in the next (after `/model terra` saved Terra as the default), giving a -$0.08 row. Spend the hooks can't see in such a turn goes uncounted. Approved by the user 2026-10-29 (C10).
 - U5: the formula check (as amended, decision 2A) was verified to the row's printed precision (±$0.005), not ±$0.0005, and the live checks were confirmed from rows pasted as text rather than screenshots. - overrides `plan.md:585`, `plan.md:589-590`. reason: the row prints whole cents above $0.01 and the mod's state is kept only in memory, so no exact `untracked` figure can be read outside the session; each row total also matched the old telemetry and the proxy log at that precision.
+- U6: the cache view has no `none` state: with no `lastAt` it is `cold`, so the band shows `cache cold` before the first reply and after a model switch; `hooks/cache.ts` and `tests/cache.test.ts` changed. - overrides `plan.md:404`, `plan.md:422`, `plan.md:430`, and the `none` case at `plan.md:611`. reason: `switched()` clears `lastAt` and `hitRatio`, so U3's `none` rule hid the segment after `/model`, and U6's live check (`plan.md:638`) needs `cache cold`; deleting the state was chosen over adding a rule to rescue it. Approved by the user 2026-10-30 (C1b).
+- U6: the user confirms each placement and the live checks in words instead of by screenshot. - overrides `plan.md:619`, `plan.md:641`. reason: the user said of the `'above'` band "I don't need to bother with the screenshot" (2026-10-30).
+- U6: `/model` changes the band's model name immediately only mid-conversation; switched before the first turn, the name changes on the next 30 s refresh (the cache already reads `cache cold`). U8's README lists this under Known limits. - overrides `plan.md:638`; extends `plan.md:751` (Known limits). reason: in a live fresh session the name took up to 30 s, while mid-conversation (after confirming the context reload) the name and `cache cold` changed at once; likely Claude Code raises `PostModelSwitch` only when there is a conversation, unverified (the typings don't say). Approved by the user 2026-10-30 (option 1).
 
 ---
 
@@ -122,34 +125,17 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 
 ### U6 - The band, and the under-the-prompt spike
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 1h 0m
 
 **Model:** Claude: Opus 5.5 (medium) · GPT: Astra (medium) - unfamiliar render API plus an exploratory placement spike.
 
-**Executes:** `plan.md:594-641 § U6: The band, and the under-the-prompt spike`
-
-**Acceptance:** `plan.md:632-641 § U6 ➔ Done when`
-
-**Scope limits:** `plan.md:14-18 § Context ➔ Not building or doing`
-
-**Conventions:** `plan.md:20-38 § Conventions`
-
-**Decisions:** `plan.md:52-53 § Decisions ➔ D6, D7`, `plan.md:58 § Decisions ➔ X2`
-
-**Gotchas:** `plan.md:70-73 § Cross-cutting gotchas ➔ G1-G4`
-
-**Reference:** `plan.md:79-129 § Reference: patterns proven in the throwaway`
-
-**Stop-and-ask:** `plan.md:143-152 § Stop-and-ask triggers (all units)`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
-
+**Key findings:**
+- Outcome: built the two-line bordered band per `plan.md:602-614`, drawn above the prompt (`AbovePrompt`), the placement the user picked in the X2 spike ("Above is the winner"); the `hint` and `status` code paths were deleted. Acceptance: `tsc` exit 0; `claude plugin test`: 54 pass, 0 fail (three deliberate breakages of the band each failed one band test); `claude plugin validate` passes, listing `ui.render{component=AbovePrompt}`. Live, confirmed by the user in words: all segments show, mid-conversation `/model` changes the name and shows `cache cold` at once, 7d countdown reads `↻2d09h17m`. Deviations: see Amendments, U6 entries (no `none` cache state, confirmation in words, model name delayed up to 30 s before the first turn).
+- Files: created `hooks/band.tsx` (`bandTree(ui, s, now)`: the band as JSX, given the drawing parts from `$.ui.resolve(e)` rather than `$`) and `tests/band.test.tsx`; modified `hooks/register.tsx` (the `AbovePrompt` hook), `hooks/cache.ts` (`view` has no `none`) and `tests/cache.test.ts`. U7's pane cache line (`plan.md:664`) uses `view`, which now returns only `cold` or `warm`.
+- Gotchas: `PromptHint` places a custom drawing about 18 columns in, and `width="100%"` / `alignSelf` only stretch it right; Claude Code draws the mode pills separately, so taking over the hint doesn't kill them, and `e.props.hint` was just `·`. `$.ui.status` is plain text only. Claude Code raised no `PostModelSwitch` our hook saw for a switch before the first turn (likely not raised without a conversation, unverified). With nothing beneath the mod, `$.ui.mount` fails when the hook passes (`no implementation for ui.render`); a test of the pass needs an `on('ui.render', …)` stand-in for Claude Code's drawing. The old `telemetry` plugin's status line shows under the prompt alongside the band until it is removed.
+- Decisions made and why: removed the cache view's `none` state (C1b) rather than adding a "no model on record" rule, which would have patched the rule that broke. Wrote the band as plain JSX plus a throwaway plain-text builder (C2b) rather than one shared data layer, since only the spike needed sharing. Both spike render hooks were registered unconditionally and chose at run time, because whether the validator accepts conditional registration was unverified. The chosen placement is recorded here rather than as an amendment, since `'above'` was the plan's own fallback. No draft-hiding: only `PromptHint` reports `isDraft`. Accepted the delayed name before the first turn over a shorter refresh or a per-draw `$.session.model()` call.
 ---
 
 ### U7 - `/telemetry` pane
@@ -238,10 +224,10 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U1-U5 done; U6 not started
-- Why stopped: U5 closed and committed; no unit begun.
+- Written against: U1-U6 done; U7 not started
+- Why stopped: U6 closed and committed; no unit begun.
 - Mid-edit when stopped: nothing.
 - Open question awaiting an answer: none.
-- Working agreements: D9 (Brave search first, `plan.md:45`) and D11 (comments for a reader new to mods and TypeScript, `plan.md:47`) were stated during plan review. Proposals use labelled changes C1, C2, …: on 2026-10-29 the user said of that format "this new format is really good and exactly what I want". On 2026-10-29, after a U5 change list explained changes with plan pointers and implementation detail, the user said "You didn't follow the rules for proposing changes about a sentance or two explaining what each change is and why ... This keeps happening, how do we fix it", and approved F3: each change now gets a `What:` and a `Why:` line, one sentence each, before its code (global `CLAUDE.md`, "Presenting proposed changes"). Everything else is in the user's CLAUDE.md.
-- Next action: U6 is unblocked (U5 done). Switch to the model on its **Model:** line (Opus 5.5 medium), then `/roadmap begin U6`. Read U5's Files and Gotchas first: state goes through `hooks/session.ts`, and the validator's same-file rule for atoms applies to `band.tsx`.
-- Environment: branch `4-create-telemetry-mod`; the old `telemetry` plugin is still installed and running; the throwaway mod `telemetry-preview` is still on disk (U8 amendment); live checks ran in a session started with `claude --plugin-dir plugins/telemetry-mod`; during U5 testing `/model terra` saved Terra as the user's default for new sessions, and the user said they'd deal with it; F3 changed `/home/david/dotfiles/claude/.claude/CLAUDE.md`, uncommitted and outside this repo.
+- Working agreements: D9 (Brave search first, `plan.md:45`) and D11 (comments for a reader new to mods and TypeScript, `plan.md:47`) were stated during plan review. Proposals use labelled changes C1, C2, … with a `What:` and a `Why:` line before the code (global `CLAUDE.md`, "Presenting proposed changes"; the user approved F3 on 2026-10-29 after saying "You didn't follow the rules for proposing changes … This keeps happening, how do we fix it"). On 2026-10-30, shown the `'above'` band, the user said "I don't need to bother with the screenshot": live checks are confirmed in words (U6 amendment). Everything else is in the user's CLAUDE.md.
+- Next action: U7 is unblocked (U4, U5 done). Switch to the model on its **Model:** line (Sonnet 5.5 high), then `/roadmap begin U7`. Read U5's Files (state only through `hooks/session.ts`, add `readTurns` there) and U6's Gotchas (test stand-in for `ui.render`; `view` has no `none`).
+- Environment: branch `4-create-telemetry-mod`; the old `telemetry` plugin is still installed and its status line shows under the prompt; the throwaway mod `telemetry-preview` is still on disk (U8 amendment); live checks run in a session started with `claude --plugin-dir plugins/telemetry-mod`; `/model sonnet` was run during U6 and saves the default for new sessions, so the default may now be Sonnet; F3 changed `/home/david/dotfiles/claude/.claude/CLAUDE.md`, uncommitted and outside this repo.

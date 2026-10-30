@@ -82,8 +82,9 @@ export function resumed(
 
 // What the UI shows. `as const` keeps `kind` as the exact string, so callers can
 // switch on it and TypeScript knows which other fields exist.
+// With no request on record (a fresh session, or just after a model switch) the
+// cache is cold: nothing has been cached for the current model yet.
 export function view(s: CacheState, now: number) {
-  if (s.lastAt === undefined && s.hitRatio === undefined) return { kind: 'none' as const }
   if (s.lastAt === undefined || s.lastAt + s.ttlMs <= now) return { kind: 'cold' as const }
   return {
     kind: 'warm' as const,
