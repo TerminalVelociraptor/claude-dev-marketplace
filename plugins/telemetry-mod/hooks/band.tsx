@@ -10,7 +10,7 @@
 // the plugin status line is plain text only.
 
 import type { ElementTable } from 'claude-code'
-import type { Limit, Snapshot } from '../types'
+import type { CacheState, Limit, Snapshot } from '../types'
 import { view } from './cache'
 import { countdown, percentColor, usd } from './format'
 import { sessionUsd } from './session'
@@ -20,8 +20,20 @@ import { sessionUsd } from './session'
 type Ui = { Box: ElementTable['Box']; Text: ElementTable['Text'] }
 
 // '5h' and '7d' for the two windows Claude Code reports; any other kind as-is.
-function limitLabel(kind: string): string {
+// Exported: pane.tsx labels its rate-limit rows the same way.
+export function limitLabel(kind: string): string {
   return kind === 'five_hour' ? '5h' : kind === 'seven_day' ? '7d' : kind
+}
+
+// The cache segment's words, e.g. 'cache 91% 23m left', or 'cache cold'. Also
+// says whether the figure is an estimate, which the band draws as a dim '(est.)'.
+// Exported: pane.tsx shows the same words.
+export function cacheText(c: CacheState, now: number): { text: string; cold: boolean; estimated: boolean } {
+  const v = view(c, now)
+  if (v.kind === 'cold') return { text: 'cache cold', cold: true, estimated: false }
+  // The hit ratio is missing when a resumed session dated the cache before any request.
+  const hit = v.hitRatio === undefined ? '' : `${Math.round(v.hitRatio * 100)}% `
+  return { text: `cache ${hit}${countdown(v.leftMs)} left`, cold: false, estimated: v.estimated }
 }
 
 // ' ↻1d12h13m', or '' when the window has no reset time.
@@ -63,14 +75,12 @@ export function bandTree(ui: Ui, s: Snapshot, now: number) {
       </Text>,
     )
   }
-  const cache = view(s.cache, now)
-  if (cache.kind === 'cold') bottom.push(<Text dimColor>cache cold</Text>)
+  const cache = cacheText(s.cache, now)
+  if (cache.cold) bottom.push(<Text dimColor>{cache.text}</Text>)
   else {
-    // The hit ratio is missing when a resumed session dated the cache before any request.
-    const hit = cache.hitRatio === undefined ? '' : `${Math.round(cache.hitRatio * 100)}% `
     bottom.push(
       <Text>
-        {`cache ${hit}${countdown(cache.leftMs)} left`}
+        {cache.text}
         {cache.estimated && <Text dimColor> (est.)</Text>}
       </Text>,
     )

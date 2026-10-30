@@ -13,14 +13,16 @@ import type { Snapshot, Turn } from '../types'
 import { INITIAL } from './cache'
 
 // What the snapshot reads as before anything has been saved.
-const INITIAL_SNAP: Snapshot = { model: '', gitDirty: false, correction: 0, limits: [], cache: INITIAL }
+const INITIAL_SNAP: Snapshot = {
+  model: '', gitDirty: false, correction: 0, limits: [], cache: INITIAL, turnCount: 0, byModel: {},
+}
 
 // `atom(ref, initial, { shape })` names one value in $.state. The plugin and
 // key must be written out literally (`as const` keeps them as exact strings
 // rather than plain `string`), or the validator can't list what the mod
 // stores (G1). `shape` is a version tag saved with the value: change it when
 // the type changes, and a value saved under the old tag reads as the initial.
-const snapAtom = atom({ plugin: 'telemetry-mod', key: 'snap' } as const, INITIAL_SNAP, { shape: 'snap-v1' })
+const snapAtom = atom({ plugin: 'telemetry-mod', key: 'snap' } as const, INITIAL_SNAP, { shape: 'snap-v3' })
 const turnsAtom = atom({ plugin: 'telemetry-mod', key: 'turns' } as const, [] as Turn[], { shape: 'turns-v1' })
 
 // `claude plugin validate` accepts read/update only next to the atom's own
@@ -34,6 +36,11 @@ export function readSnap($: StateDollar) {
 
 export function updateSnap($: StateDollar, change: (s: Snapshot) => Snapshot) {
   return update($, snapAtom, change)
+}
+
+// The saved turns, newest last; the pane's table reads them.
+export function readTurns($: StateDollar) {
+  return read($, turnsAtom)
 }
 
 export function updateTurns($: StateDollar, change: (turns: Turn[]) => Turn[]) {

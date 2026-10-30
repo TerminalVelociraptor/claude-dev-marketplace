@@ -11,23 +11,25 @@
 //   format.ts           the strings the row, band and pane show
 //   ../types/index.d.ts the shape of the saved state
 //   band.tsx            what the band shows
-//   pane.tsx (U7) draws from the saved state.
+//   pane.tsx            what the /telemetry pane shows, and how many turns it lists
 //
 // Every hook has the shape `($, e, next)`: `$` is how the mod calls Claude
 // Code, `e` is the event, and `next(e)` passes the event on to the rest of the
 // chain (other plugins, then Claude Code itself) and returns its result. A
 // hook that forgets `next(e)` swallows the event.
 
-import type { EngineInterface, Register, SessionRateLimit, Timer } from 'claude-code'
-import type { Limit } from '../types'
+import type { EngineInterface, Register, SessionContextBreakdown, SessionRateLimit, Timer } from 'claude-code'
+import type { ContextView, Limit, TurnCost } from '../types'
 import { bandTree } from './band'
 import { observe, resumed, switched, writeTtl } from './cache'
 import { modelName, row } from './format'
 import { Ledger } from './ledger'
-import { readSnap, updateSnap, updateTurns } from './session'
+import { BIGGEST_ITEMS, PANE_COLUMNS, TABLE_TURNS, paneTree } from './pane'
+import { readSnap, readTurns, updateSnap, updateTurns } from './session'
 
 const REFRESH_MS = 30_000 // A4
-const KEEP_TURNS = 200 // A3
+// The id the pane is opened, closed and drawn under.
+const PANE_ID = 'telemetry'
 
 // Module variables. A hot reload of the mod resets them, while $.state
 // survives (G4), so only the in-flight turn lives here: a reload mid-turn
@@ -54,12 +56,46 @@ function limits(rateLimits: SessionRateLimit[]): Limit[] {
   return rateLimits.map((l) => ({ kind: l.kind, percent: l.percentUsed, resetsAt: l.resetsAt }))
 }
 
+// Cuts a context breakdown down to what the pane draws: the categories that
+// fill the window, biggest first, and the biggest few memory files, MCP tools
+// (the ones loaded), agents and skills, merged into one list.
+function contextView(b: SessionContextBreakdown): ContextView {
+  const items = [
+    ...b.memoryFiles.map((m) => ({ kind: 'Memory', name: m.path, tokens: m.tokens })),
+    ...b.mcpTools.filter((t) => t.isLoaded).map((t) => ({ kind: 'MCP', name: `${t.serverName}: ${t.name}`, tokens: t.tokens })),
+    ...b.agents.map((a) => ({ kind: 'Agent', name: a.agentType, tokens: a.tokens })),
+    ...(b.skills?.skillFrontmatter ?? []).map((k) => ({ kind: 'Skill', name: k.name, tokens: k.tokens })),
+  ]
+  return {
+    categories: b.categories
+      .filter((c) => c.kind === 'used')
+      .map(({ name, tokens, color }) => ({ name, tokens, color }))
+      .sort((a, c) => c.tokens - a.tokens),
+    items: items.sort((a, c) => c.tokens - a.tokens).slice(0, BIGGEST_ITEMS),
+  }
+}
+
+// Adds one turn's spend per model (main thread and subagents) to the session's
+// running totals, which the pane's By model section shows.
+function addSpend(spend: Record<string, number>, turn: TurnCost): Record<string, number> {
+  const next = { ...spend }
+  for (const group of [turn.main, turn.sub]) {
+    for (const [id, m] of Object.entries(group.models)) next[id] = (next[id] ?? 0) + m.usd
+  }
+  return next
+}
+
 // Re-reads model, git, context, limits and cost into the snapshot. Runs every
 // 30 s, after a model switch and after each turn (A4). Never throws.
+// While the pane is open it also asks for the context breakdown, counted as
+// /context counts it (`full`, 24 ms in the one live sample). The cheaper
+// `summary` estimate is not used: its total was right but it counted the tool
+// schemas 12K too high and Messages 12K too low. A closed pane costs nothing.
 async function refresh($: EngineInterface): Promise<void> {
+  const paneOpen = (await settled($.ui.panes()))?.some((pane) => pane.id === PANE_ID) ?? false
   const [model, usage, branch, dirty] = await Promise.all([
     settled($.session.model()),
-    settled($.session.usage()),
+    settled($.session.usage(paneOpen ? { breakdown: 'full' } : undefined)),
     settled(git($, 'branch', '--show-current').then((b) => b || git($, 'rev-parse', '--short', 'HEAD'))),
     settled(git($, 'status', '--porcelain')),
   ])
@@ -75,14 +111,18 @@ async function refresh($: EngineInterface): Promise<void> {
     limits: usage ? limits(usage.rateLimits) : s.limits,
     ccTotal: usage?.cost?.usd ?? s.ccTotal,
     startedAt: usage?.startedAt ?? s.startedAt,
+    // Kept as it was while the pane is closed or the call failed.
+    context: usage?.context.breakdown ? contextView(usage.context.breakdown) : s.context,
   })).catch(ignore)
 }
 
 export const register: Register = (on) => {
   // Called once when the session starts (and again after a hot reload).
   // Starts the 30 s refresh and records Claude Code's total so the first
-  // turn's cost can be measured from it.
+  // turn's cost can be measured from it. Also declares the /telemetry command,
+  // which lists it in the typeahead; the command.run hook below serves it.
   on('session.start', async ($, e, next) => {
+    await settled($.command.register({ name: PANE_ID, description: 'Toggle the telemetry details pane.' }))
     timer?.cancel()
     timer = $.clock.every(REFRESH_MS, () => void refresh($))
     baseline = (await settled($.session.usage()))?.cost?.usd
@@ -163,14 +203,17 @@ export const register: Register = (on) => {
 
     const now = await $.clock.now()
     await updateTurns($, (turns) =>
-      // `.at(-1)` is the last element; `.slice(-200)` keeps the last 200.
-      [...turns, { ...turn, index: (turns.at(-1)?.index ?? 0) + 1, doneAt: now }].slice(-KEEP_TURNS),
+      // `.at(-1)` is the last element; `.slice(-n)` keeps the last n, which is
+      // all the pane's table lists.
+      [...turns, { ...turn, index: (turns.at(-1)?.index ?? 0) + 1, doneAt: now }].slice(-TABLE_TURNS),
     ).catch(ignore)
     await updateSnap($, (s) => ({
       ...s,
       lastTurn: turn.total,
       correction: s.correction + turn.correction,
       ccTotal: cc ?? s.ccTotal,
+      turnCount: s.turnCount + 1,
+      byModel: addSpend(s.byModel, turn),
     })).catch(ignore)
     void refresh($)
 
@@ -199,5 +242,38 @@ export const register: Register = (on) => {
     const s = await readSnap($)
     if (s.model === '') return next(e)
     return bandTree($.ui.resolve(e), s, await $.clock.now())
+  })
+
+  // Called when the person types /telemetry. Closes the pane if it is open,
+  // opens it if not. The answer is the text printed in the transcript. `focus`
+  // is left out so the prompt keeps the keyboard. Whether the pane docks beside
+  // the chat or sits above the prompt is the terminal layout's choice.
+  on('command.run', { command: 'telemetry' }, async ($) => {
+    const isOpen = (await $.ui.panes()).some((pane) => pane.id === PANE_ID)
+    if (isOpen) {
+      await $.ui.close({ id: PANE_ID })
+      return { text: 'Telemetry pane closed.' }
+    }
+    await $.ui.open({ id: PANE_ID, title: 'Telemetry', columns: PANE_COLUMNS })
+    // Now that the pane is open, fetch its context breakdown without waiting for the 30 s refresh.
+    void refresh($)
+    return { text: 'Telemetry pane opened.' }
+  })
+
+  // The pane's body. Like the band, reading the saved state here makes Claude
+  // Code redraw the pane whenever it changes. The context window comes from
+  // Claude Code directly, as the snapshot doesn't keep it.
+  on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e) => {
+    const [s, turns, usage, now] = await Promise.all([
+      readSnap($),
+      readTurns($),
+      settled($.session.usage()),
+      $.clock.now(),
+    ])
+    return paneTree($.ui.resolve(e), s, turns, now, {
+      bodyColumns: e.props.bodyColumns,
+      rows: e.props.scroll.bodyRows,
+      windowTokens: usage?.context.window,
+    })
   })
 }

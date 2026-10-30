@@ -16,7 +16,9 @@ const NOW = 1_000_000_000_000
 type Dollar = Parameters<TestBody>[0]
 type On = Parameters<TestBody>[1]
 
-const BASE: Snapshot = { model: 'Opus 5.5', gitDirty: false, correction: 0, limits: [], cache: INITIAL }
+const BASE: Snapshot = {
+  model: 'Opus 5.5', gitDirty: false, correction: 0, limits: [], cache: INITIAL, turnCount: 0, byModel: {},
+}
 
 // The props Claude Code hands the AbovePrompt hook; only hasSurvey matters here.
 const PROPS: RenderPropsOf['AbovePrompt'] = {
@@ -32,7 +34,7 @@ const PROPS: RenderPropsOf['AbovePrompt'] = {
 async function band($: Dollar, on: On, change: Partial<Snapshot>) {
   mock.clock(on, { now: NOW })
   const snap: Snapshot = { ...BASE, ...change }
-  on('state.get', () => ({ value: { value: { shape: 'snap-v1', value: snap }, version: 1 } }))
+  on('state.get', () => ({ value: { value: { shape: 'snap-v3', value: snap }, version: 1 } }))
   return $.ui.mount({ plugin: 'telemetry-mod', surface: 'terminal', component: 'AbovePrompt', props: PROPS })
 }
 

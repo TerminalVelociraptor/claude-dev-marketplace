@@ -37,6 +37,14 @@ export type TurnCost = {
   unpriced: string[]             // model ids with no rates, sorted, unique
 }
 
+// Where the used context comes from, as `$.session.usage({ breakdown })` reports
+// it, cut down to what the pane draws. `color` is the theme key /context draws
+// the category in.
+export type ContextView = {
+  categories: { name: string; tokens: number; color: string }[]  // used categories, biggest first
+  items: { kind: string; name: string; tokens: number }[]        // the biggest memory files, MCP tools, agents and skills
+}
+
 // One rate-limit window, e.g. kind 'five_hour' at 23.5 percent.
 export type Limit = { kind: string; percent: number; resetsAt?: string }
 
@@ -54,6 +62,9 @@ export type Snapshot = {
   limits: Limit[]
   cache: CacheState
   startedAt?: number
+  context?: ContextView          // only while the pane is open; see register.tsx's refresh
+  turnCount: number              // main turns this session; unlike the saved turns, not capped
+  byModel: Record<string, number> // model id -> usd this session, main + subagents
 }
 
 // A finished turn as the pane lists it: its cost, its number in the session
