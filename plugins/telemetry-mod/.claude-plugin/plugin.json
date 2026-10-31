@@ -1,0 +1,7 @@
+{
+  "name": "telemetry-mod",
+  "version": "0.1.0",
+  "description": "Cost and session telemetry as a Claude Code mod: a status band, a per-turn cost row, and a /telemetry details pane.",
+  "author": { "name": "David Engel", "email": "drengel88@gmail.com" },
+  "types": "./types/index.d.ts"
+}
