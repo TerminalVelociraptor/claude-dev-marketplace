@@ -73,6 +73,17 @@ Carry both the lines and the heading. Point at the tightest range that answers t
 lines where two lines will do, not the enclosing section. A range must not start of end mid-item:
 begin it at the first line of the list entry, paragraph or code block it names.
 
+## Naming units in reports
+
+Wherever a report names a unit by its label - `resume`'s report, `close`'s summary, the handoff's
+`Next action`, any "unblocked" list - follow the label with a brief description in parentheses:
+`U2 (Pricing and the per-turn ledger)`, not `U2`.
+
+Read the description from `plan.md` at report time, through the unit's `Executes` pointer: use the
+unit's **Deliverables** line, or the unit's heading text if it has none. Shorten it to a few words.
+Never write it into `roadmap.md`; that file holds pointers only. The `State` table's `Name` column
+and the `### U<n> - <name>` headings are unchanged.
+
 ## start
 
 `/roadmap start [plan-path]`
@@ -99,7 +110,7 @@ begin it at the first line of the list entry, paragraph or code block it names.
 
 Read `roadmap.md`, then only the plan lines the current unit poitns at - not the whole plan. Report
 the current unit and its state, anything the handoff records as mid-edit, the working agreements, and
-the next action. Ask before doing anything else.
+the next action, naming units as in "Naming units in reports". Ask before doing anything else.
 
 ## begin
 
@@ -144,7 +155,9 @@ walking away mid-unit.
    `xh ym` rounded to the nearest 30 minutes - `3h 0m`, `0h 15m`, `3h 45m`. This is the figure to log
    in the work item. Never estimate it, and never infer it from timestamps or commit history.
 5. **Collapse:** delete the unit's pointer lines. Status and Key findings survive.
-6. Update the state table, rewrite the handoff, refresh `_Updated:_`.
+6. Update the state table, rewrite the handoff, refresh `_Updated:_`. In the handoff's `Next action`
+   and in what you say to the user, name any unit this close unblocked as in "Naming units in
+   reports".
 7. **Commit** (see Committing).
 
 When the last unit closes the work is finishedL say so, write `Next action: none - plan complete` in
