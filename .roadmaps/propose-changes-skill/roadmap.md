@@ -2,7 +2,7 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #8_
-_Updated: 2026-10-31 - U2 closed_
+_Updated: 2026-10-31 - U4 closed_
 
 ## State
 | Unit | Name | State | Depends on |
@@ -10,7 +10,7 @@ _Updated: 2026-10-31 - U2 closed_
 | U1 | Create the skill file | done | - |
 | U2 | Rewrite issue #8's body | done | - |
 | U3 | Remove the CLAUDE.md section and run the clean subagent test | done | U1 |
-| U4 | User live tests, then restore the section | not started | U3 |
+| U4 | User live tests, then restore the section | done | U3 |
 | U5 | Commit | not started | U4 |
 
 States: `not started` / `in progress` / `done`
@@ -21,6 +21,7 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 - U5: also write `plugins/workflow-preferences/README.md` (short: plugin purpose, the one skill `propose-changes`, how to invoke it as `/workflow-preferences:propose-changes`; at least 40 words) and commit it with the skill - overrides `plan.md:262` (commit `SKILL.md` only) and `plan.md:264` (Done when: `git log -1 --stat` shows only `SKILL.md`); U5 now expects `SKILL.md` plus `README.md`, plus the `.roadmaps/` files. reason: user decision after U1; `plugin validate` reported `README_MISSING`. LICENSE and icon findings stay out of scope.
 - U3: the subagent test was not clean: the subagent still saw the removed `# Presenting proposed changes` rules (likely inherited from this session's startup CLAUDE.md; mechanism unverified). User accepted the run as-is (option a) - overrides `plan.md:26` (D10, "run only after the section is removed so the test is clean"). U4's live tests in fresh sessions serve as the clean test. reason: the subagent followed the skill over CLAUDE.md and reported every conflict.
 - U3/U4: the CLAUDE.md backup is at `/tmp/claude-1000/-home-david-agent-tools-plugin-marketplace/5defd3f7-3531-4841-ac91-d9f8096ece7b/scratchpad/presenting-proposed-changes.md` (plus a whole-file copy `presenting-proposed-changes.full-backup.md` in the same directory), not the path in `plan.md:160`; U4 restores from it. reason: the plan's path is in an earlier session's scratchpad; user approved ("go").
+- U4: the `# Presenting proposed changes` section is NOT restored to `~/dotfiles/claude/.claude/CLAUDE.md`; the skill replaces it. Overrides `plan.md:256` (step 3, paste the backup back) and `plan.md:259` (Done when: `grep -c` → `1` and the dotfiles diff shows only the pre-existing What:/Why: change). reason: user decision after all live tests T1-T7 passed ("don't bring them back, the skill is working well").
 
 ---
 
@@ -68,25 +69,15 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 
 ### U4 - User live tests, then restore the section
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 0h 15m
 
-**Executes:** `plan.md:241-257 § U4 — User live tests, then restore the section`
-
-**Acceptance:** `plan.md:259 § U4 ➔ Done when`
-
-**Decisions:** `plan.md:25 § Decisions ➔ D9`
-
-**Conventions:** `plan.md:39 § Conventions ➔ clodex alias`
-
-**Stop-and-ask:** `plan.md:266-271 § Stop-and-ask triggers`; review stop `plan.md:43 § Units`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: the user ran live tests T1-T7 (`plan.md:245-253`) in fresh sessions with `--plugin-dir`; all passed (user-reported, replies not seen by me). Section not restored, by user decision (see Amendments). Acceptance as amended: `grep -c "Presenting proposed changes" ~/dotfiles/claude/.claude/CLAUDE.md` → `0`; `git diff` there shows only 7 deleted lines (the section and its trailing blank line).
+- Files: no repo files changed. `~/dotfiles/claude/.claude/CLAUDE.md` still has the section removed, uncommitted, outside this repo. No wording changes to `SKILL.md`. `plugins/workflow-preferences/` has no `README.md` yet; U5 must create it.
+- Gotchas: the dotfiles diff shows no What:/Why: change, so the "pre-existing change" `plan.md:259` expected is not in the working diff (already committed or never present; not checked).
+- Decisions made and why: did not restore the CLAUDE.md section because the skill replaces it and the user is moving to day-to-day use as the real test. Backups in `/tmp` are no longer needed for restore.
 
 ---
 
@@ -114,10 +105,10 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U1, U2, U3 done; no unit in progress
-- Why stopped: U3 closed, awaiting the user's review
-- Mid-edit when stopped: the `# Presenting proposed changes` section is still removed from `~/dotfiles/claude/.claude/CLAUDE.md` (intended until U4); backup in this session's scratchpad (see Amendments) - `/tmp` may not survive a reboot
+- Written against: U1-U4 done; no unit in progress
+- Why stopped: U4 closed, awaiting the user's review
+- Mid-edit when stopped: nothing in the repo. `~/dotfiles/claude/.claude/CLAUDE.md` has the section removed and uncommitted, deliberately (see Amendments)
 - Open question awaiting an answer: none
 - Working agreements: "During execution, stop for my review after each unit." (user CLAUDE.md, Plans section); before any subagent, post a pre-flight check and wait for OK (user CLAUDE.md hard rule).
-- Next action: `/roadmap begin U4` (depends on U3, satisfied); live tests in a session started after the removal, then restore the section from the backup
+- Next action: `/roadmap begin U5` (depends on U4, satisfied); write `README.md`, commit with the skill per Amendments; ask before any push
 - Environment: branch `8-add-propose-changes-skill-to-workflow-preferences`; `claude` is aliased to `clodex claude`, use `command claude`
