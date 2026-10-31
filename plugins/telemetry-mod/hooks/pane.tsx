@@ -13,7 +13,7 @@
 import type { ElementTable } from 'claude-code'
 import type { ContextView, Snapshot, Turn } from '../types'
 import { cacheText, limitLabel } from './band'
-import { countdown, modelName, percentColor, usd } from './format'
+import { countdown, modelName, nonZero, percentColor, usd } from './format'
 import { sessionUsd } from './session'
 
 // How many of the latest turns the table lists. register.tsx keeps this many
@@ -53,9 +53,10 @@ type Props = {
   windowTokens?: number    // the model's context window, from $.session.usage()
 }
 
-// A money figure for a table cell: '0.45', or '—' for nothing or zero.
+// A money figure for a table cell: '0.45', or '—' for nothing or an amount
+// that prints as zero (float noise such as -0.00000000000001).
 function cell(x: number | undefined): string {
-  return x === undefined || x === 0 ? '—' : usd(x).replace('$', '')
+  return x === undefined || !nonZero(x) ? '—' : usd(x).replace('$', '')
 }
 
 // Right-aligns text in a column `width` cells wide.

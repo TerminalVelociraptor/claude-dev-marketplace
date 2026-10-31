@@ -15,6 +15,12 @@ export function modelName(id: string): string {
   return version.length ? `${name} ${version.join('.')}` : name
 }
 
+// Whether an amount prints as non-zero: usd() shows 4 decimals under a cent,
+// so anything smaller is float noise. The row and the pane both use it.
+export function nonZero(x: number): boolean {
+  return Math.abs(x) >= 0.00005
+}
+
 // Money: 4 decimals under one cent so tiny amounts don't read as $0.00.
 export function usd(x: number): string {
   const digits = Math.abs(x) < 0.01 ? 4 : 2
@@ -59,9 +65,8 @@ export function row(turn: TurnCost): string {
     const text = entries(turn.sub.models, (m) => `${plural(m.agents.length, 'agent')}, ${plural(m.requests, 'request')}`)
     parts.push(`subagents ${usd(turn.sub.usd)} (${text})`)
   }
-  // Shown whenever it prints as non-zero (usd() shows 4 decimals under a cent),
-  // so the parts always add up to the total. Smaller is float noise.
-  if (turn.untracked !== undefined && Math.abs(turn.untracked) >= 0.00005) {
+  // Shown whenever it prints as non-zero, so the parts always add up to the total.
+  if (turn.untracked !== undefined && nonZero(turn.untracked)) {
     parts.push(`untracked ${usd(turn.untracked)}`)
   }
   if (turn.unpriced.length) parts.push(`unpriced: ${turn.unpriced.map(modelName).join(', ')}`)

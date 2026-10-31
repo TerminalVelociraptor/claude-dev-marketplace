@@ -9,11 +9,12 @@
 // answers the event's own result. The mod's state lives in `store`, in its
 // saved form `{ shape, value }`.
 
-import type { ModelUsage, SessionContextBreakdown, SessionUsage, SessionUsageArgs, UiPane } from 'claude-code'
+import type { AgentInfo, AgentStatus, ModelUsage, SessionContextBreakdown, SessionUsage, SessionUsageArgs, UiPane } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 import type { TestBody } from 'claude-code/testing'
 import type { Snapshot, Turn } from '../types'
 import { TABLE_TURNS } from '../hooks/pane'
+import { KEEP_SESSIONS } from '../hooks/session'
 
 // $0.10 on Opus 5.5 ($4 per million input tokens).
 const OPUS_10C: ModelUsage = { input_tokens: 25_000, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
@@ -258,6 +259,204 @@ test('while the pane is open, a refresh asks for the breakdown and saves it cut 
     { kind: 'Skill', name: 'create-plugin', tokens: 900 },
     { kind: 'Agent', name: 'plugin-dev:agent-creator', tokens: 800 },
   ])
+})
+
+// Stands in for the mod's own $.store (kept between sessions) and for the
+// session's id. Returns the store, which a test fills or reads directly.
+function kv(on: On, sessionId = 'S1'): Map<string, unknown> {
+  const kept = new Map<string, unknown>()
+  on('session.id', () => ({ value: sessionId }))
+  on('store.get', (_$, e) => ({ value: kept.get(e.key) }))
+  on('store.set', (_$, e) => (kept.set(e.key, e.value), { value: undefined }))
+  on('store.delete', (_$, e) => (kept.delete(e.key), { value: undefined }))
+  on('store.keys', () => ({ value: [...kept.keys()] }))
+  // Claude Code's own handling of the event, beneath the mod: nothing to add.
+  on('classic.SessionStart', () => ({}))
+  return kept
+}
+
+// Claude Code resuming (or starting) a session in this process.
+function sessionStart($: Dollar, source: 'resume' | 'startup') {
+  return $.classic.SessionStart({ source, seconds_since_last_response: 10, prompt_cache_likely_expired: false })
+}
+
+// One main Opus turn that Claude Code's total puts at `usd` for the session.
+async function opusTurn($: Dollar, cost: { usd: number | undefined }, usd: number) {
+  cost.usd = usd
+  await step($, 'claude-opus-5-5')
+  await complete($, 'done')
+}
+
+test("a resumed session gets back its turns, turn count, spend by model, correction and last turn", async ($, on) => {
+  const cost = { usd: 0 as number | undefined }
+  const state = engine(on, cost)
+  const kept = kv(on)
+  await $.session.start({ cwd: '/', surface: null, isInteractive: false })
+  await opusTurn($, cost, 0.1)
+  await opusTurn($, cost, 0.2)
+  const before = saved<Snapshot>(state, 'snap')
+  expect(kept.has('session:S1')).toBe(true)
+
+  // A new process: $.state starts empty, the store is still there.
+  state.clear()
+  await sessionStart($, 'resume')
+
+  const snap = saved<Snapshot>(state, 'snap')
+  expect(snap.turnCount).toBe(2)
+  expect(snap.byModel).toEqual(before.byModel)
+  expect(snap.correction).toBe(before.correction)
+  expect(snap.lastTurn).toBe(before.lastTurn)
+  expect(saved<Turn[]>(state, 'turns').map((t) => t.index)).toEqual([1, 2])
+})
+
+test('a resume with nothing stored for the session changes nothing', async ($, on) => {
+  const cost = { usd: 0 as number | undefined }
+  const state = engine(on, cost)
+  const kept = kv(on)
+  await $.session.start({ cwd: '/', surface: null, isInteractive: false })
+  await opusTurn($, cost, 0.1)
+
+  kept.clear()
+  await sessionStart($, 'resume')
+
+  expect(saved<Snapshot>(state, 'snap').turnCount).toBe(1)
+  expect(saved<Turn[]>(state, 'turns')).toHaveLength(1)
+})
+
+test('a stored history under another version tag is ignored', async ($, on) => {
+  const cost = { usd: 0 as number | undefined }
+  const state = engine(on, cost)
+  const kept = kv(on)
+  await $.session.start({ cwd: '/', surface: null, isInteractive: false })
+  await opusTurn($, cost, 0.1)
+
+  kept.set('session:S1', { v: 0, savedAt: 0, turns: [], turnCount: 99, byModel: {}, correction: 0 })
+  await sessionStart($, 'resume')
+
+  expect(saved<Snapshot>(state, 'snap').turnCount).toBe(1)
+})
+
+test('a session starting fresh restores nothing, even with a history stored under its id', async ($, on) => {
+  const cost = { usd: 0 as number | undefined }
+  const state = engine(on, cost)
+  const kept = kv(on)
+  await $.session.start({ cwd: '/', surface: null, isInteractive: false })
+  await opusTurn($, cost, 0.1)
+
+  kept.set('session:S1', { v: 1, savedAt: 0, turns: [], turnCount: 99, byModel: {}, correction: 0 })
+  await sessionStart($, 'startup')
+
+  expect(saved<Snapshot>(state, 'snap').turnCount).toBe(1)
+})
+
+// Fills the store with `n` other sessions, saved at times 1, 2, ... n.
+function others(kept: Map<string, unknown>, n: number) {
+  for (let i = 1; i <= n; i++) kept.set(`session:old${i}`, { v: 1, savedAt: i, turns: [], turnCount: 1, byModel: {}, correction: 0 })
+}
+
+test('saving one session past KEEP_SESSIONS deletes the one saved longest ago', async ($, on) => {
+  const cost = { usd: 0 as number | undefined }
+  engine(on, cost)
+  const kept = kv(on)
+  others(kept, KEEP_SESSIONS)
+  await $.session.start({ cwd: '/', surface: null, isInteractive: false })
+  await opusTurn($, cost, 0.1)
+
+  expect(kept.size).toBe(KEEP_SESSIONS)
+  expect(kept.has('session:old1')).toBe(false)
+  expect(kept.has('session:old2')).toBe(true)
+  expect(kept.has('session:S1')).toBe(true)
+})
+
+test('saving up to KEEP_SESSIONS sessions deletes none', async ($, on) => {
+  const cost = { usd: 0 as number | undefined }
+  engine(on, cost)
+  const kept = kv(on)
+  others(kept, KEEP_SESSIONS - 1)
+  await $.session.start({ cwd: '/', surface: null, isInteractive: false })
+  await opusTurn($, cost, 0.1)
+
+  expect(kept.size).toBe(KEEP_SESSIONS)
+  expect(kept.has('session:old1')).toBe(true)
+})
+
+// Stands in for $.agent.list(): the agents in `agents.now` (changed between
+// turns by the test), or a failed call when `agents.fail` is set.
+type AgentsStand = { now: AgentInfo[]; fail?: boolean }
+function agentList(on: On, agents: AgentsStand) {
+  on('agent.list', () => {
+    if (agents.fail) throw new Error('agent.list failed')
+    return { value: agents.now }
+  })
+}
+
+function agent(status: AgentStatus, teammateId?: string): AgentInfo {
+  return { id: 'a1', description: 'Count lines', type: 'general-purpose', status, teammateId }
+}
+
+test("a main turn ending while a background agent runs prints no row; the next row covers both turns", async ($, on) => {
+  const cost = { usd: 0 as number | undefined }
+  const state = engine(on, cost)
+  const agents: AgentsStand = { now: [agent('running')] }
+  agentList(on, agents)
+  await $.session.start({ cwd: '/', surface: null, isInteractive: false })
+
+  cost.usd = 0.1
+  await step($, 'claude-opus-5-5')
+  expect((await complete($, 'launched')).text).toBe('launched')
+  // Nothing saved for the held turn: the turns were never written.
+  expect(state.has('turns')).toBe(false)
+
+  agents.now = [agent('completed')]
+  cost.usd = 0.2
+  await step($, 'claude-opus-5-5')
+  const { text } = await complete($, 'all back')
+
+  expect(text).toBe('~$0.20 this turn · main $0.20 (Opus 5.5: 2 requests)')
+  expect(saved<Snapshot>(state, 'snap').turnCount).toBe(1)
+  expect(saved<Turn[]>(state, 'turns')).toHaveLength(1)
+})
+
+// Each status, and whether a main turn ending then is held (no row).
+const HOLDS: [AgentStatus, boolean][] = [
+  ['pending', true], ['running', true], ['waiting', true],
+  ['idle', false], ['completed', false], ['failed', false], ['killed', false],
+]
+for (const [status, held] of HOLDS) {
+  test(`an agent ${status} ${held ? 'holds' : 'does not hold'} the row`, async ($, on) => {
+    const cost = { usd: 0 as number | undefined }
+    engine(on, cost)
+    agentList(on, { now: [agent(status)] })
+    await $.session.start({ cwd: '/', surface: null, isInteractive: false })
+
+    cost.usd = 0.1
+    await step($, 'claude-opus-5-5')
+    const { text } = await complete($, 'done')
+
+    expect(text === 'done').toBe(held)
+  })
+}
+
+test('a running teammate does not hold the row', async ($, on) => {
+  const cost = { usd: 0 as number | undefined }
+  engine(on, cost)
+  agentList(on, { now: [agent('running', 'team-1')] })
+  await $.session.start({ cwd: '/', surface: null, isInteractive: false })
+
+  cost.usd = 0.1
+  await step($, 'claude-opus-5-5')
+  expect((await complete($, 'done')).text.startsWith('~$0.10 this turn')).toBe(true)
+})
+
+test('when the agent list fails, the row prints', async ($, on) => {
+  const cost = { usd: 0 as number | undefined }
+  engine(on, cost)
+  agentList(on, { now: [agent('running')], fail: true })
+  await $.session.start({ cwd: '/', surface: null, isInteractive: false })
+
+  cost.usd = 0.1
+  await step($, 'claude-opus-5-5')
+  expect((await complete($, 'done')).text.startsWith('~$0.10 this turn')).toBe(true)
 })
 
 test('while the pane is closed, no breakdown is asked for and none is saved', async ($, on) => {

@@ -136,6 +136,20 @@ test('a zero or missing part reads —', async ($, on) => {
   await ui.unmount()
 })
 
+// An untracked part, and how its cell reads: anything that prints as zero
+// (float noise left by subtracting two totals) reads —, as the row hides it.
+const UNTRACKED_CELLS: [number, string][] = [
+  [-1e-17, '—'], [0.00004, '—'], [-0.00004, '—'], [0.0001, '0.0001'], [-0.0001, '-0.0001'],
+]
+for (const [untracked, shown] of UNTRACKED_CELLS) {
+  test(`an untracked part of ${untracked} reads ${shown}`, async ($, on) => {
+    const ui = await pane($, on, { turnCount: 1 }, [turn(1, 0.45, 0, untracked)])
+    const escaped = shown.replace(/[.\-]/g, '\\$&')
+    expect(await ui.find({ type: 'Text', text: new RegExp(`^ *1 +0\\.45 +— +${escaped} +0\\.45$`) })).toBeDefined()
+    await ui.unmount()
+  })
+}
+
 test('the session duration shows when Claude Code gave a start time', async ($, on) => {
   const ui = await pane($, on, { startedAt: NOW - 90 * 60_000 })
   expect(await ui.find({ type: 'Text', text: /· 1h30m$/ })).toBeDefined()

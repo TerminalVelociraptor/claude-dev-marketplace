@@ -4,7 +4,7 @@
 //
 // How to read this mod:
 //   register.tsx        the hooks: when Claude Code calls us, and what we save (this file)
-//   session.ts          the saved state (atoms) and the session's spend
+//   session.ts          the saved state (atoms), its copy for --resume, and the session's spend
 //   ledger.ts           one turn's cost, request by request
 //   pricing.ts          the rates, and the price of one request
 //   cache.ts            the prompt-cache estimate
@@ -25,9 +25,10 @@ import { observe, resumed, switched, writeTtl } from './cache'
 import { modelName, row } from './format'
 import { Ledger } from './ledger'
 import { BIGGEST_ITEMS, PANE_COLUMNS, TABLE_TURNS, paneTree } from './pane'
-import { readSnap, readTurns, updateSnap, updateTurns } from './session'
+import { readSnap, readTurns, restoreHistory, saveHistory, updateSnap, updateTurns } from './session'
 
-const REFRESH_MS = 30_000 // A4
+// How often model, git, context, limits and cost are re-read, in ms (A4).
+const REFRESH_MS = 30_000
 // The id the pane is opened, closed and drawn under.
 const PANE_ID = 'telemetry'
 
@@ -85,6 +86,18 @@ function addSpend(spend: Record<string, number>, turn: TurnCost): Record<string,
   return next
 }
 
+// The agent states that mean "still working": not started, mid-turn, or held
+// on background work. `idle` and the ended states are not.
+const BUSY: ReadonlySet<string> = new Set(['pending', 'running', 'waiting'])
+
+// Whether any background subagent is still working. Teammates are left out:
+// one can run for the whole session, which would hide every row. A failed
+// list counts as not busy, so the row prints.
+async function agentsBusy($: EngineInterface): Promise<boolean> {
+  const agents = await settled($.agent.list())
+  return agents?.some((a) => a.teammateId === undefined && BUSY.has(a.status)) ?? false
+}
+
 // Re-reads model, git, context, limits and cost into the snapshot. Runs every
 // 30 s, after a model switch and after each turn (A4). Never throws.
 // While the pane is open it also asks for the context breakdown, counted as
@@ -132,11 +145,13 @@ export const register: Register = (on) => {
     return next(e)
   })
 
-  // Called when a session starts from an older transcript. On resume or fork,
-  // Claude Code says how long ago the last response was, which dates the cache.
-  // `classic.*` hooks can hold Claude Code up, so `.catch` passes the event on
-  // if this one fails (G2).
+  // Called when a session starts from an older transcript. On resume, the
+  // session's history comes back from the store (session.ts). On resume or
+  // fork, Claude Code says how long ago the last response was, which dates the
+  // cache. `classic.*` hooks can hold Claude Code up, so `.catch` passes the
+  // event on if this one fails (G2).
   on('classic.SessionStart', async ($, e, next) => {
+    if (e.source === 'resume') await restoreHistory($).catch(ignore)
     if (e.source === 'resume' || e.source === 'fork') {
       const now = await $.clock.now()
       await updateSnap($, (s) => ({
@@ -196,6 +211,11 @@ export const register: Register = (on) => {
     if (e.agentId !== undefined) return next(e)
 
     const answer = await next(e)
+    // While background agents are still working, print no row: each agent's
+    // result wakes the model for a turn of its own, which would add a row each.
+    // The ledger stays open and the baseline unchanged, so the row printed once
+    // they have all finished covers these turns too.
+    if (await agentsBusy($)) return answer
     const cc = (await settled($.session.usage()))?.cost?.usd
     const delta = cc !== undefined && baseline !== undefined ? cc - baseline : undefined
     baseline = cc ?? baseline
@@ -215,6 +235,8 @@ export const register: Register = (on) => {
       turnCount: s.turnCount + 1,
       byModel: addSpend(s.byModel, turn),
     })).catch(ignore)
+    // A copy that outlives the process, for `claude --resume`.
+    await saveHistory($, now).catch(ignore)
     void refresh($)
 
     // `...answer` copies the answer's fields; `text` replaces its text.

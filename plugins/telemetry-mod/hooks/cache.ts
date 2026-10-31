@@ -18,6 +18,7 @@ import type { ModelUsage } from 'claude-code'
 // CacheState describes saved state, so it lives in the state contract.
 import type { CacheState } from '../types'
 
+// The two prompt-cache lifetimes Claude can write with, in ms.
 const FIVE_MIN = 300_000
 const ONE_HOUR = 3_600_000
 
