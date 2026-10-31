@@ -2,7 +2,7 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #8_
-_Updated: 2026-10-31 - U4 closed_
+_Updated: 2026-10-31 - U5 closed; plan complete_
 
 ## State
 | Unit | Name | State | Depends on |
@@ -11,7 +11,7 @@ _Updated: 2026-10-31 - U4 closed_
 | U2 | Rewrite issue #8's body | done | - |
 | U3 | Remove the CLAUDE.md section and run the clean subagent test | done | U1 |
 | U4 | User live tests, then restore the section | done | U3 |
-| U5 | Commit | not started | U4 |
+| U5 | Commit | done | U4 |
 
 States: `not started` / `in progress` / `done`
 
@@ -22,6 +22,8 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 - U3: the subagent test was not clean: the subagent still saw the removed `# Presenting proposed changes` rules (likely inherited from this session's startup CLAUDE.md; mechanism unverified). User accepted the run as-is (option a) - overrides `plan.md:26` (D10, "run only after the section is removed so the test is clean"). U4's live tests in fresh sessions serve as the clean test. reason: the subagent followed the skill over CLAUDE.md and reported every conflict.
 - U3/U4: the CLAUDE.md backup is at `/tmp/claude-1000/-home-david-agent-tools-plugin-marketplace/5defd3f7-3531-4841-ac91-d9f8096ece7b/scratchpad/presenting-proposed-changes.md` (plus a whole-file copy `presenting-proposed-changes.full-backup.md` in the same directory), not the path in `plan.md:160`; U4 restores from it. reason: the plan's path is in an earlier session's scratchpad; user approved ("go").
 - U4: the `# Presenting proposed changes` section is NOT restored to `~/dotfiles/claude/.claude/CLAUDE.md`; the skill replaces it. Overrides `plan.md:256` (step 3, paste the backup back) and `plan.md:259` (Done when: `grep -c` → `1` and the dotfiles diff shows only the pre-existing What:/Why: change). reason: user decision after all live tests T1-T7 passed ("don't bring them back, the skill is working well").
+- U5: no separate commit of `SKILL.md`; units U1-U4 were each committed at their close, so U5 only writes `README.md`, which is committed by U5's close - overrides `plan.md:262` (commit `SKILL.md`) and `plan.md:264` (Done when) and narrows the earlier U5 amendment above. reason: user instruction at `/roadmap begin U5`.
+- U5: `README.md` is minimal (purpose, pointer to `skills/<name>/SKILL.md`, invocation pattern) and names no skill - overrides the earlier U5 amendment that it names `propose-changes`. reason: user approved revised C1 to avoid drift from `SKILL.md`.
 
 ---
 
@@ -83,32 +85,24 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 
 ### U5 - Commit
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 0h 30m
 
-**Executes:** `plan.md:261-262 § U5 — Commit`
-
-**Acceptance:** `plan.md:264 § U5 — Commit ➔ Done when`
-
-**Decisions:** `plan.md:33 § Decisions ➔ A4` (branch part amended, see Amendments)
-
-**Stop-and-ask:** `plan.md:266-271 § Stop-and-ask triggers`; review stop `plan.md:43 § Units`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: wrote `plugins/workflow-preferences/README.md` (48 words) and committed it with the roadmap files at close; `SKILL.md` was already committed by U1-U4. Acceptance as amended: `claude plugin validate plugins/workflow-preferences` → "Validation passed" with no `README_MISSING`; `git log -1 --stat` after the close commit lists the README and roadmap files. Deviations: see Amendments.
+- Files: added `plugins/workflow-preferences/README.md` (purpose, pointer to `skills/<name>/SKILL.md`, invocation pattern `/workflow-preferences:<name>`). It names no skill.
+- Gotchas: `plugin validate` now gives advice (not a failure) that the README has no `/plugin install ... --marketplace <owner>/<repo>` line. `LICENSE_MISSING` and `ICON_MISSING` remain, out of scope. Nothing pushed.
+- Decisions made and why: kept the README minimal and skill-agnostic because anything restating `SKILL.md` (format, triggers, skill list) drifts when the skill changes. Left out the install line to avoid hard-coding owner/repo.
 
 ---
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U1-U4 done; no unit in progress
-- Why stopped: U4 closed, awaiting the user's review
+- Written against: U1-U5 done; no unit in progress
+- Why stopped: last unit closed
 - Mid-edit when stopped: nothing in the repo. `~/dotfiles/claude/.claude/CLAUDE.md` has the section removed and uncommitted, deliberately (see Amendments)
 - Open question awaiting an answer: none
 - Working agreements: "During execution, stop for my review after each unit." (user CLAUDE.md, Plans section); before any subagent, post a pre-flight check and wait for OK (user CLAUDE.md hard rule).
-- Next action: `/roadmap begin U5` (depends on U4, satisfied); write `README.md`, commit with the skill per Amendments; ask before any push
+- Next action: none - plan complete
 - Environment: branch `8-add-propose-changes-skill-to-workflow-preferences`; `claude` is aliased to `clodex claude`, use `command claude`
