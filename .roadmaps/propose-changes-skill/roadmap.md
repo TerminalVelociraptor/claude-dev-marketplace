@@ -2,13 +2,13 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #8_
-_Updated: 2026-10-31 - U1 closed_
+_Updated: 2026-10-31 - U2 closed_
 
 ## State
 | Unit | Name | State | Depends on |
 |---|---|---|---|
 | U1 | Create the skill file | done | - |
-| U2 | Rewrite issue #8's body | not started | - |
+| U2 | Rewrite issue #8's body | done | - |
 | U3 | Remove the CLAUDE.md section and run the clean subagent test | not started | U1 |
 | U4 | User live tests, then restore the section | not started | U3 |
 | U5 | Commit | not started | U4 |
@@ -38,23 +38,15 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 
 ### U2 - Rewrite issue #8's body
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 0h 15m
 
-**Executes:** `plan.md:128-155 § U2 — Rewrite issue #8's body`
-
-**Acceptance:** `plan.md:157 § U2 — Rewrite issue #8's body ➔ Done when`
-
-**Decisions:** `plan.md:27 § Decisions ➔ D11`
-
-**Stop-and-ask:** `plan.md:266-271 § Stop-and-ask triggers`; review stop `plan.md:43 § Units`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: Issue #8's body replaced with the text from `plan.md:128-155`; no deviations. Acceptance passed: the body read back starts with `## Goal`, contains "diff block", and contains neither "Blocked by #7" nor "Repeat 3 times".
+- Files: no repo files changed. The body was sent from a scratchpad file, not kept in the repo.
+- Gotchas: the plan's command names a scratchpad path from an earlier session; a path in the current session's scratchpad was used instead. GitHub adds one trailing blank line to the stored body, so a byte-for-byte diff against the sent file shows that one line.
+- Decisions made and why: held the edit for the user's explicit approval ("approve C1") before running `gh issue edit`, since the issue is visible outside this machine. Title, labels and comments left unchanged.
 
 ---
 
@@ -130,10 +122,10 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U1 done; no unit in progress
-- Why stopped: U1 closed, awaiting the user's review
+- Written against: U1 and U2 done; no unit in progress
+- Why stopped: U2 closed, awaiting the user's review
 - Mid-edit when stopped: nothing
 - Open question awaiting an answer: none
-- Working agreements: "During execution, stop for my review after each unit." (user CLAUDE.md, Plans section); before any subagent, post a pre-flight check and wait for OK (user CLAUDE.md hard rule).
-- Next action: `/roadmap begin U3` (depends on U1, satisfied) or `/roadmap begin U2` (independent)
+- Working agreements: "During execution, stop for my review after each unit." (user CLAUDE.md, Plans section); before any subagent, post a pre-flight check and wait for OK (user CLAUDE.md hard rule); for outward-facing edits, show the change and wait for approval by label (user replied "approve C1" to a proposed issue edit).
+- Next action: `/roadmap begin U3` (depends on U1, satisfied); U3 launches a subagent, so post a pre-flight check first
 - Environment: branch `8-add-propose-changes-skill-to-workflow-preferences`; `claude` is aliased to `clodex claude`, use `command claude`
