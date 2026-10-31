@@ -87,8 +87,9 @@ def parse_entries(text):
 
         name = re.sub(r"\s+\([^)]*\)$", "", block["heading"])
         nonempty = [line for line in lines if line.strip()]
-        # An item's marker cannot double as the entry's location line.
-        if len(nonempty) < 2 or nonempty[1] in ("**Contains:**", "**Holds:**"):
+        # The purpose line and the location line both come before the first marker.
+        first_marker = next(i for i, line in enumerate(nonempty) if line in markers)
+        if first_marker < 2:
             raise CheckError(f"{name}: no location line in sdd.md")
         spans = TICK_RE.findall(nonempty[1])
         path = next((span for span in spans if span.endswith(".md")), None)

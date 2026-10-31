@@ -298,6 +298,11 @@ class SddCheckTest(unittest.TestCase):
         unlocated = self.run_check()
         self.assertEqual(unlocated.returncode, 2)
         self.assertIn("sdd-check: Slice: no location line in sdd.md", unlocated.stderr)
+        self.sdd.write_text(FIXTURE.replace("## Slice\nPurpose.\nWherever you put it. Short.\n",
+                                            "## Slice\n"), encoding="utf-8")
+        bare = self.run_check()
+        self.assertEqual(bare.returncode, 2)
+        self.assertIn("sdd-check: Slice: no location line in sdd.md", bare.stderr)
         self.sdd.write_text(FIXTURE, encoding="utf-8")
         self.assert_clean(self.run_check())
 
