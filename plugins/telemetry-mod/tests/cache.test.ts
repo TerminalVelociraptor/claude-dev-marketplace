@@ -3,7 +3,7 @@
 
 import type { ModelUsage } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
-import { INITIAL, observe, resumed, switched, view, writeTtl } from '../hooks/cache'
+import { INITIAL, cleared, observe, resumed, switched, view, writeTtl } from '../hooks/cache'
 
 const T0 = 1_000_000_000_000
 const OPUS = 'claude-opus-5-5'
@@ -24,6 +24,14 @@ test('a fresh state is cold', () => {
 
 test('a model switch is cold until the next request', () => {
   expect(view(switched(INITIAL, 'claude-sonnet-5-5', '1h'), T0)).toEqual({ kind: 'cold' })
+})
+
+test('clearing the session makes the cache cold but keeps the learned lifetime and model', () => {
+  const warm = observe(switched(INITIAL, OPUS, '5m'), OPUS, u({ read: 900, creation: 100 }), T0)
+  expect(view(warm, T0)).toMatchObject({ kind: 'warm' })
+  const s = cleared(warm)
+  expect(view(s, T0)).toEqual({ kind: 'cold' })
+  expect(s).toEqual({ model: OPUS, ttlMs: 300_000, ttlSource: 'switch' })
 })
 
 test('one request with cache activity is warm, with an assumed 1h lifetime', () => {

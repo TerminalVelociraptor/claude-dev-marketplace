@@ -8,7 +8,7 @@
 // learns the real value from the gaps between requests.
 //
 // Flow: register.tsx calls observe() for each main-thread request, switched() on a
-// model switch and resumed() when a session resumes. band.tsx and pane.tsx call
+// model switch, resumed() when a session resumes and cleared() after /clear. band.tsx and pane.tsx call
 // view() to render. pricing.ts's callers use writeTtl() to price cache writes.
 //
 // Every function is pure: it takes the old CacheState and returns a new one, and
@@ -79,6 +79,13 @@ export function resumed(
   }
   if (secondsSinceLastResponse !== undefined) return { ...s, lastAt: now - secondsSinceLastResponse * 1000 }
   return s
+}
+
+// Called when the session is cleared. The conversation is new, so the last
+// request's timing and hit ratio say nothing about it; the lifetime still holds.
+export function cleared(s: CacheState): CacheState {
+  const { lastAt, hitRatio, ...rest } = s
+  return rest
 }
 
 // What the UI shows. `as const` keeps `kind` as the exact string, so callers can
