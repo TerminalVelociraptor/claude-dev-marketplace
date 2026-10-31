@@ -286,6 +286,37 @@ class SddCheckTest(unittest.TestCase):
         self.assert_clean(self.run_check("--doc", "Slice", "-",
                                          stdin="# S\n## Outcome\nx\n"))
 
+    def test_23_malformed_sdd_entries(self):
+        self.write("docs/overview.md", OVERVIEW)
+        self.sdd.write_text(FIXTURE.replace("- **Outcome:** o\n  *Why:* w\n", ""),
+                            encoding="utf-8")
+        empty = self.run_check()
+        self.assertEqual(empty.returncode, 2)
+        self.assertIn("sdd-check: Slice: Contains list has no items in sdd.md", empty.stderr)
+        self.sdd.write_text(FIXTURE.replace("Wherever you put it. Short.\n", ""),
+                            encoding="utf-8")
+        unlocated = self.run_check()
+        self.assertEqual(unlocated.returncode, 2)
+        self.assertIn("sdd-check: Slice: no location line in sdd.md", unlocated.stderr)
+        self.sdd.write_text(FIXTURE, encoding="utf-8")
+        self.assert_clean(self.run_check())
+
+    def test_24_duplicate_heading_anchor(self):
+        body = "#### Detail\nalpha\n### Notes\n#### Detail\nbeta\n"
+        self.write("docs/overview.md",
+                   "## Overview\n### Goals\n[beta](overview.md#detail-1)\n" + body)
+        self.assert_clean(self.run_check())
+        self.write("docs/overview.md",
+                   "## Overview\n### Goals\n[beta](overview.md#detail)\n" + body)
+        self.assertIn("not-in-target: `beta` doesn't appear under `#detail`",
+                      self.run_check().stdout)
+
+    def test_25_tilde_fence_hides_links(self):
+        self.write("docs/overview.md", OVERVIEW + "~~~\n```\n[x](missing.md)\n~~~\n")
+        self.assert_clean(self.run_check())
+        self.write("docs/overview.md", OVERVIEW + "[x](missing.md)\n")
+        self.assertIn("broken-link: `missing.md`: no such file", self.run_check().stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
