@@ -1,0 +1,6 @@
+{
+  "name": "workflow-preferences",
+  "version": "0.1.0",
+  "description": "My personal workflow preferences for working with Claude Code.",
+  "author": { "name": "David Engel", "email": "drengel88@gmail.com" }
+}

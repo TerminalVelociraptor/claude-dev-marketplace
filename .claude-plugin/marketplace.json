@@ -47,6 +47,13 @@
       "description": "Cost and session telemetry as a Claude Code mod: an always-on status band (model, effort, git, context, cost, rate limits, cache), a per-turn cost row split by main thread, subagents and untracked spend, and a /telemetry details pane.",
       "category": "productivity",
       "tags": ["cost", "mod", "tokens", "pricing", "rate-limits"]
+    },
+    {
+      "name": "workflow-preferences",
+      "source": "./plugins/workflow-preferences",
+      "description": "My personal workflow preferences for working with Claude Code.",
+      "category": "productivity",
+      "tags": ["workflow", "preferences", "planning"]
     }
   ]
 }
