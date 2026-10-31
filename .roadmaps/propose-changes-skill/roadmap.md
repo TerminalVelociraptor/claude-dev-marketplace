@@ -9,7 +9,7 @@ _Updated: 2026-10-31 - U2 closed_
 |---|---|---|---|
 | U1 | Create the skill file | done | - |
 | U2 | Rewrite issue #8's body | done | - |
-| U3 | Remove the CLAUDE.md section and run the clean subagent test | not started | U1 |
+| U3 | Remove the CLAUDE.md section and run the clean subagent test | done | U1 |
 | U4 | User live tests, then restore the section | not started | U3 |
 | U5 | Commit | not started | U4 |
 
@@ -19,6 +19,8 @@ States: `not started` / `in progress` / `done`
 _Append-only. Where execution diverged or will diverge from the frozen plan. `none.` until one occurs._
 - U5: work happens on the existing branch `8-add-propose-changes-skill-to-workflow-preferences` (already checked out at start), not a new `8-add-propose-changes-skill` from `main` - overrides `plan.md:33` and `plan.md:262`. reason: the user created this branch before `/roadmap start`.
 - U5: also write `plugins/workflow-preferences/README.md` (short: plugin purpose, the one skill `propose-changes`, how to invoke it as `/workflow-preferences:propose-changes`; at least 40 words) and commit it with the skill - overrides `plan.md:262` (commit `SKILL.md` only) and `plan.md:264` (Done when: `git log -1 --stat` shows only `SKILL.md`); U5 now expects `SKILL.md` plus `README.md`, plus the `.roadmaps/` files. reason: user decision after U1; `plugin validate` reported `README_MISSING`. LICENSE and icon findings stay out of scope.
+- U3: the subagent test was not clean: the subagent still saw the removed `# Presenting proposed changes` rules (likely inherited from this session's startup CLAUDE.md; mechanism unverified). User accepted the run as-is (option a) - overrides `plan.md:26` (D10, "run only after the section is removed so the test is clean"). U4's live tests in fresh sessions serve as the clean test. reason: the subagent followed the skill over CLAUDE.md and reported every conflict.
+- U3/U4: the CLAUDE.md backup is at `/tmp/claude-1000/-home-david-agent-tools-plugin-marketplace/5defd3f7-3531-4841-ac91-d9f8096ece7b/scratchpad/presenting-proposed-changes.md` (plus a whole-file copy `presenting-proposed-changes.full-backup.md` in the same directory), not the path in `plan.md:160`; U4 restores from it. reason: the plan's path is in an earlier session's scratchpad; user approved ("go").
 
 ---
 
@@ -52,25 +54,15 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 
 ### U3 - Remove the CLAUDE.md section and run the clean subagent test
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 0h 15m
 
-**Executes:** `plan.md:159-237 § U3 — Remove the CLAUDE.md section and run the clean subagent test`
-
-**Acceptance:** `plan.md:239 § U3 ➔ Done when`
-
-**Decisions:** `plan.md:25-26 § Decisions ➔ D9-D10`
-
-**Conventions:** `plan.md:40 § Conventions ➔ subagent pre-flight`
-
-**Stop-and-ask:** `plan.md:266-271 § Stop-and-ask triggers`; review stop `plan.md:43 § Units`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: Removed `# Presenting proposed changes` (lines 47-56) from `~/dotfiles/claude/.claude/CLAUDE.md`, ran the subagent clarity test, applied user-approved fixes C1, C2, C3 and C5 to `SKILL.md`. Acceptance passed: Part B 9/10, with the #8 mismatch accepted by the user as addressed by C1; Part C defects fixed or waived; `claude plugin validate` passes and `grep -c '~~'` → `0`. Deviations: see Amendments (test not clean; backup path).
+- Files: modified `plugins/workflow-preferences/skills/propose-changes/SKILL.md` - description also triggers when asked which format/structure/process to use (`SKILL.md:8-9`); unknown Why still shows the change and asks after it (`SKILL.md:26-27`); review fixes diff against current code (`SKILL.md:37-39`); example context line `return out.sort()` (`SKILL.md:67`). Modified `~/dotfiles/claude/.claude/CLAUDE.md` outside the repo (section removed, not committed). U4 must restore it from the backup named in the Amendments.
+- Gotchas: a subagent launched from a session started before the removal still sees the removed CLAUDE.md rules (it quoted them as conflicts while `grep -c` on disk returned `0`); mechanism unverified. A clean test needs a session started after the removal. The S5 review showed stacked diffs (a later fix written against earlier fixes), which the skill did not forbid until C3. Part B #8 was not re-tested after C1.
+- Decisions made and why: accepted the unclean run (option a) because the subagent followed the skill over CLAUDE.md and reported every conflict; U4's fresh-session live tests serve as the clean test. Waived C4 (caveat placement), C6 (extra example) and the rest of Part C as already covered or out of scope. Kept the folded description's short line `asked which one to use; and` rather than exceed 100 columns.
 
 ---
 
@@ -122,10 +114,10 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U1 and U2 done; no unit in progress
-- Why stopped: U2 closed, awaiting the user's review
-- Mid-edit when stopped: nothing
+- Written against: U1, U2, U3 done; no unit in progress
+- Why stopped: U3 closed, awaiting the user's review
+- Mid-edit when stopped: the `# Presenting proposed changes` section is still removed from `~/dotfiles/claude/.claude/CLAUDE.md` (intended until U4); backup in this session's scratchpad (see Amendments) - `/tmp` may not survive a reboot
 - Open question awaiting an answer: none
-- Working agreements: "During execution, stop for my review after each unit." (user CLAUDE.md, Plans section); before any subagent, post a pre-flight check and wait for OK (user CLAUDE.md hard rule); for outward-facing edits, show the change and wait for approval by label (user replied "approve C1" to a proposed issue edit).
-- Next action: `/roadmap begin U3` (depends on U1, satisfied); U3 launches a subagent, so post a pre-flight check first
+- Working agreements: "During execution, stop for my review after each unit." (user CLAUDE.md, Plans section); before any subagent, post a pre-flight check and wait for OK (user CLAUDE.md hard rule).
+- Next action: `/roadmap begin U4` (depends on U3, satisfied); live tests in a session started after the removal, then restore the section from the backup
 - Environment: branch `8-add-propose-changes-skill-to-workflow-preferences`; `claude` is aliased to `clodex claude`, use `command claude`
