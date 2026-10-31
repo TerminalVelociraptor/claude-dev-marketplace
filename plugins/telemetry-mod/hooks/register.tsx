@@ -21,7 +21,7 @@
 import type { EngineInterface, Register, SessionContextBreakdown, SessionRateLimit, Timer } from 'claude-code'
 import type { ContextView, Limit, TurnCost } from '../types'
 import { bandTree } from './band'
-import { observe, resumed, switched, writeTtl } from './cache'
+import { cleared, observe, resumed, switched, writeTtl } from './cache'
 import { modelName, repoName, row } from './format'
 import { Ledger } from './ledger'
 import { BIGGEST_ITEMS, PANE_COLUMNS, TABLE_TURNS, paneTree } from './pane'
@@ -41,6 +41,11 @@ let baseline: number | undefined
 let timer: Timer | undefined
 
 const ignore = () => undefined
+
+// The context figures, emptied. After /clear Claude Code reports no context
+// fill until the next response, and refresh and session.measure keep the old
+// value when none is reported, so it has to be dropped by hand.
+const NO_CONTEXT = { ctxPercent: undefined, ctxTokens: undefined, context: undefined }
 
 // Resolves to undefined instead of rejecting, so one failing source doesn't
 // stop the others.
@@ -147,12 +152,36 @@ export const register: Register = (on) => {
     return next(e)
   })
 
-  // Called when a session starts from an older transcript. On resume, the
-  // session's history comes back from the store (session.ts). On resume or
-  // fork, Claude Code says how long ago the last response was, which dates the
-  // cache. `classic.*` hooks can hold Claude Code up, so `.catch` passes the
-  // event on if this one fails (G2).
+  // Called when a session starts: fresh, from an older transcript, after
+  // /clear or after /compact. On /clear, everything kept from the old session
+  // is dropped; on /compact, the old cache timing. On resume, the session's
+  // history comes back from the store (session.ts). On resume or fork, Claude
+  // Code says how long ago the last response was, which dates the cache.
+  // `classic.*` hooks can hold Claude Code up, so `.catch` passes the event on
+  // if this one fails (G2).
   on('classic.SessionStart', async ($, e, next) => {
+    // /clear starts a new session in the same process: Claude Code's cost
+    // restarts at 0 and session.start does not fire again, so what the mod
+    // kept from the old session must be dropped here.
+    if (e.source === 'clear') {
+      baseline = (await settled($.session.usage()))?.cost?.usd
+      ledger = new Ledger()
+      await updateTurns($, () => [])
+      await updateSnap($, (s) => ({
+        ...s, ...NO_CONTEXT, ccTotal: baseline, correction: 0, lastTurn: undefined, turnCount: 0, byModel: {}, cache: cleared(s.cache),
+      }))
+      void refresh($)
+    }
+    // /compact replaces the conversation with a summary. The session, its cost
+    // and its history carry on; the cache timing describes the old
+    // conversation. The context figures are left alone: Claude Code reports a
+    // fill right after a compact and corrects it on the next response.
+    // baseline and the ledger stay: auto-compact can run mid-turn, and the
+    // turn's requests still count.
+    if (e.source === 'compact') {
+      await updateSnap($, (s) => ({ ...s, cache: cleared(s.cache) }))
+      void refresh($)
+    }
     if (e.source === 'resume') await restoreHistory($).catch(ignore)
     if (e.source === 'resume' || e.source === 'fork') {
       const now = await $.clock.now()

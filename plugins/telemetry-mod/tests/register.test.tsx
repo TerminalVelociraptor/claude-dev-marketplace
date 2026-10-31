@@ -276,7 +276,7 @@ function kv(on: On, sessionId = 'S1'): Map<string, unknown> {
 }
 
 // Claude Code resuming (or starting) a session in this process.
-function sessionStart($: Dollar, source: 'resume' | 'startup') {
+function sessionStart($: Dollar, source: 'resume' | 'startup' | 'clear' | 'compact') {
   return $.classic.SessionStart({ source, seconds_since_last_response: 10, prompt_cache_likely_expired: false })
 }
 
@@ -347,6 +347,77 @@ test('a session starting fresh restores nothing, even with a history stored unde
   await sessionStart($, 'startup')
 
   expect(saved<Snapshot>(state, 'snap').turnCount).toBe(1)
+})
+
+// Changes the saved snapshot by hand, as a new version, for state the test
+// engine can't produce (a warm cache, a context fill). Waits first for the
+// refreshes still running, so none of them writes over the change.
+async function seed(state: Map<string, Stored>, change: (s: Snapshot) => Snapshot) {
+  await flush()
+  const entry = state.get('snap')!
+  const wrapped = entry.value as { value: Snapshot }
+  state.set('snap', { ...entry, version: entry.version + 1, value: { ...wrapped, value: change(wrapped.value) } })
+}
+
+test('after /clear the first turn is measured from the new session, and the old history is gone', async ($, on) => {
+  const cost = { usd: 0 as number | undefined }
+  const state = engine(on, cost)
+  kv(on)
+  await $.session.start({ cwd: '/', surface: null, isInteractive: false })
+  await opusTurn($, cost, 0.6)   // the old session has cost $0.60
+  await seed(state, (s) => ({ ...s, ctxPercent: 80, ctxTokens: 160_000 }))
+
+  cost.usd = 0                   // /clear: Claude Code's cost restarts at 0
+  await sessionStart($, 'clear')
+  const cleared = saved<Snapshot>(state, 'snap')
+  expect(cleared.ccTotal).toBe(0)
+  expect(cleared.ctxPercent).toBeUndefined()
+  expect(cleared.ctxTokens).toBeUndefined()
+
+  await opusTurn($, cost, 0.1)   // a $0.10 Opus turn in the new session
+  const turns = saved<Turn[]>(state, 'turns')
+  expect(turns).toHaveLength(1)
+  expect(turns[0]?.index).toBe(1)
+  expect(Math.abs(turns[0]!.total - 0.1)).toBeLessThan(1e-9)
+  const snap = saved<Snapshot>(state, 'snap')
+  expect(snap.turnCount).toBe(1)
+  expect(Math.abs(snap.byModel['claude-opus-5-5']! - 0.1)).toBeLessThan(1e-9)
+})
+
+test('after /compact the old cache timing is gone, and the session history stays', async ($, on) => {
+  const cost = { usd: 0 as number | undefined }
+  const state = engine(on, cost)
+  kv(on)
+  await $.session.start({ cwd: '/', surface: null, isInteractive: false })
+  await opusTurn($, cost, 0.1)
+  await seed(state, (s) => ({ ...s, cache: { ...s.cache, lastAt: 1_000_000 } }))
+
+  await sessionStart($, 'compact')
+  const snap = saved<Snapshot>(state, 'snap')
+  expect(snap.cache.lastAt).toBeUndefined()
+  expect(snap.turnCount).toBe(1)
+  expect(saved<Turn[]>(state, 'turns')).toHaveLength(1)
+})
+
+test('after /clear the old session\'s cache timing and in-flight requests are gone', async ($, on) => {
+  const cost = { usd: 0 as number | undefined }
+  const state = engine(on, cost)
+  kv(on)
+  await $.session.start({ cwd: '/', surface: null, isInteractive: false })
+  await opusTurn($, cost, 0.1)
+  // A request not yet closed into a turn: the ledger holds it.
+  await step($, 'claude-opus-5-5')
+  // The test engine's requests carry no cache tokens, so warm the saved cache by hand.
+  await seed(state, (s) => ({ ...s, cache: { ...s.cache, lastAt: 1_000_000 } }))
+  expect(saved<Snapshot>(state, 'snap').cache.lastAt).toBeDefined()
+
+  cost.usd = 0
+  await sessionStart($, 'clear')
+  expect(saved<Snapshot>(state, 'snap').cache.lastAt).toBeUndefined()
+
+  await opusTurn($, cost, 0.1)   // one request of its own, not the held one as well
+  const turns = saved<Turn[]>(state, 'turns')
+  expect(turns[0]?.main.models['claude-opus-5-5']?.requests).toBe(1)
 })
 
 // Fills the store with `n` other sessions, saved at times 1, 2, ... n.
