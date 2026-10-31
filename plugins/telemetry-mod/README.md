@@ -5,7 +5,7 @@ Cost and session telemetry for Claude Code, built as a mod (in-process hooks). R
 ## What it shows
 
 - **Status band** above the prompt, always on, in a bordered box:
-  `Opus 5.5 · high · main*`
+  `Opus 5.5 · high · claude-dev-marketplace · main*` (repo name from `origin`; left out when there is none)
   `ctx 64% (128K) · $0.28 / $3.21 · 5h 42% ↻1h12m · 7d 18% ↻1d12h13m · cache 91% 23m left`
 - **A cost row after every turn:**
   `~$0.28 this turn · main $0.20 (Opus 5.5: 4 requests) · subagents $0.05 (Terra: 1 agent, 3 requests; Haiku 5.5: 2 agents, 4 requests) · untracked $0.03`

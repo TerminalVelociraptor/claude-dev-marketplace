@@ -52,6 +52,7 @@ export type Limit = { kind: string; percent: number; resetsAt?: string }
 export type Snapshot = {
   model: string                  // display name, e.g. 'Opus 5.5'; '' until the first refresh
   effort?: string
+  repo?: string                  // origin's repo name, e.g. 'claude-dev-marketplace'; unset with no origin
   git?: string                   // branch, or short sha when detached
   gitDirty: boolean
   ctxPercent?: number

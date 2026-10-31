@@ -22,7 +22,7 @@ import type { EngineInterface, Register, SessionContextBreakdown, SessionRateLim
 import type { ContextView, Limit, TurnCost } from '../types'
 import { bandTree } from './band'
 import { observe, resumed, switched, writeTtl } from './cache'
-import { modelName, row } from './format'
+import { modelName, repoName, row } from './format'
 import { Ledger } from './ledger'
 import { BIGGEST_ITEMS, PANE_COLUMNS, TABLE_TURNS, paneTree } from './pane'
 import { readSnap, readTurns, restoreHistory, saveHistory, updateSnap, updateTurns } from './session'
@@ -106,17 +106,19 @@ async function agentsBusy($: EngineInterface): Promise<boolean> {
 // schemas 12K too high and Messages 12K too low. A closed pane costs nothing.
 async function refresh($: EngineInterface): Promise<void> {
   const paneOpen = (await settled($.ui.panes()))?.some((pane) => pane.id === PANE_ID) ?? false
-  const [model, usage, branch, dirty] = await Promise.all([
+  const [model, usage, branch, dirty, origin] = await Promise.all([
     settled($.session.model()),
     settled($.session.usage(paneOpen ? { breakdown: 'full' } : undefined)),
     settled(git($, 'branch', '--show-current').then((b) => b || git($, 'rev-parse', '--short', 'HEAD'))),
     settled(git($, 'status', '--porcelain')),
+    settled(git($, 'remote', 'get-url', 'origin')),
   ])
   // updateSnap applies the function to the latest saved value, so the timer
   // and a hook can't undo each other's changes.
   await updateSnap($, (s) => ({
     ...s,
     model: model === undefined ? s.model : modelName(model),
+    repo: origin === undefined ? s.repo : repoName(origin),
     git: branch || s.git,
     gitDirty: dirty === undefined ? s.gitDirty : dirty !== '',
     ctxPercent: usage?.context.percent ?? s.ctxPercent,

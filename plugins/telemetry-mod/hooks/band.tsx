@@ -1,4 +1,4 @@
-// The band: two lines about the session (model, effort, git / context, cost,
+// The band: two lines about the session (model, effort, repo, git / context, cost,
 // rate limits, cache), drawn from the saved snapshot.
 //
 // Where it sits: register.tsx's ui.render hooks read the snapshot through
@@ -48,6 +48,7 @@ export function bandTree(ui: Ui, s: Snapshot, now: number) {
 
   const top = [<Text bold>{s.model}</Text>]
   if (s.effort) top.push(<Text>{s.effort}</Text>)
+  if (s.repo) top.push(<Text>{s.repo}</Text>)
   if (s.git) {
     top.push(
       <Text>

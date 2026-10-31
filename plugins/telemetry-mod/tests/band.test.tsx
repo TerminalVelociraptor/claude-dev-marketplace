@@ -45,6 +45,19 @@ test('line 1 shows the model, and a * when the branch is dirty', async ($, on) =
   await ui.unmount()
 })
 
+test('line 1 shows the repo as its own segment', async ($, on) => {
+  const ui = await band($, on, { repo: 'claude-dev-marketplace', git: 'main' })
+  expect(await ui.find({ type: 'Text', text: 'claude-dev-marketplace' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^main/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('with no repo, line 1 has no repo segment', async ($, on) => {
+  const ui = await band($, on, { git: 'main' })
+  expect(await ui.find({ type: 'Text', text: 'claude-dev-marketplace' })).toBeUndefined()
+  await ui.unmount()
+})
+
 test('the context segment shows the percent and the tokens in thousands', async ($, on) => {
   const ui = await band($, on, { ctxPercent: 64, ctxTokens: 128_400 })
   expect(await ui.find({ type: 'Text', text: /ctx/ })).toBeDefined()

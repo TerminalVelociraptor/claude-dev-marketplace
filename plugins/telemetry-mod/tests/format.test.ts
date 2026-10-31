@@ -3,7 +3,7 @@
 
 import { expect, test } from 'claude-code/testing'
 import type { TurnCost } from '../types'
-import { countdown, modelName, percentColor, row, usd } from '../hooks/format'
+import { countdown, modelName, percentColor, repoName, row, usd } from '../hooks/format'
 
 const MIN = 60_000
 
@@ -22,6 +22,14 @@ test('modelName strips claude- and a date, and joins the version with a dot', ()
   expect(modelName('claude-opus-5-5')).toBe('Opus 5.5')
   expect(modelName('claude-haiku-4-5-20251001')).toBe('Haiku 4.5')
   expect(modelName('terra')).toBe('Terra')
+})
+
+test('repoName takes the last path segment of an SSH or HTTPS URL, without .git or a trailing /', () => {
+  expect(repoName('git@github.com:TerminalVelociraptor/claude-dev-marketplace.git')).toBe('claude-dev-marketplace')
+  expect(repoName('https://github.com/o/r.git')).toBe('r')
+  expect(repoName('https://github.com/o/r')).toBe('r')
+  expect(repoName('ssh://git@host/o/r/')).toBe('r')
+  expect(repoName('git@host:r.git')).toBe('r')
 })
 
 test('usd uses 2 decimals from a cent up and 4 below it', () => {

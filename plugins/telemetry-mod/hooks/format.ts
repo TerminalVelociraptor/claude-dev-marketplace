@@ -1,5 +1,5 @@
 // Turns numbers and model ids into the short strings the telemetry UI shows:
-// model names, dollar amounts, countdowns, the per-turn row and a colour.
+// model names, repo names, dollar amounts, countdowns, the per-turn row and a colour.
 // Pure: no hooks, no state, no `$`.
 // Where it sits: ledger.ts produces a TurnCost; this file formats it. Used by
 // register.tsx (the per-turn row), band.tsx (U6) and pane.tsx (U7).
@@ -13,6 +13,13 @@ export function modelName(id: string): string {
   const [family = '', ...version] = id.replace(/^claude-/, '').replace(/-\d{8}$/, '').split('-')
   const name = family.charAt(0).toUpperCase() + family.slice(1)
   return version.length ? `${name} ${version.join('.')}` : name
+}
+
+// A remote URL's repo name: the last path segment, without '.git' or a trailing
+// '/'. 'git@github.com:o/r.git', 'https://github.com/o/r' and
+// 'ssh://git@host/o/r/' all give 'r'.
+export function repoName(url: string): string | undefined {
+  return /([^/:]+?)(?:\.git)?\/?$/.exec(url)?.[1]
 }
 
 // Whether an amount prints as non-zero: usd() shows 4 decimals under a cent,
