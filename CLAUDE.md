@@ -11,3 +11,4 @@ Claude Code plugins, one per directory under `plugins/`, each listed in `.claude
 ## Commands
 - Test a plugin: `python3 -m unittest discover -s plugins/<plugin>/tests`
 - Validate a plugin: `claude plugin validate plugins/<plugin>`
+- Run a plugin's evals: `claude plugin eval plugins/<plugin> --ablation none`
