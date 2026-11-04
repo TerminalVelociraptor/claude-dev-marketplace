@@ -2,14 +2,14 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #9_
-_Updated: 2026-11-04 - U2 closed_
+_Updated: 2026-11-04 - U3 closed_
 
 ## State
 | Unit | Name | State | Depends on |
 |---|---|---|---|
 | U1 | Create the skill file | done | - |
 | U2 | Rewrite the always-on rules and update the notes | done | U1 |
-| U3 | Behaviour tests | not started | U1 |
+| U3 | Behaviour tests | done | U1 |
 
 States: `not started` / `in progress` / `done`
 
@@ -51,36 +51,24 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 
 ### U3 - Behaviour tests
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 0h 30m
 
-**Executes:** `plan.md:314-450 § U3 — Behaviour tests`
-
-**Acceptance:** `plan.md:452-453 § U3 — Behaviour tests ➔ Done when`
-
-**Cases:** `plan.md:361-370 § U3 — Behaviour tests ➔ Cases`
-
-**Decisions:** `plan.md:27-79 § Decisions`
-
-**Conventions:** `plan.md:81-90 § Conventions`
-
-**Stop-and-ask:** `plan.md:457-462 § Stop-and-ask triggers`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: no deviations. T5 (Sonnet 1.00, Opus 1.00, 3/3 fired each) and T6 (Sonnet 1.00, 0/3 fired) passed against `plan.md:369-370`. T1-T4 were run by the user, who confirmed every expected result held; no per-case output was recorded.
+- Files: added `plugins/workflow-preferences/evals/{trigger-patching-a-patch,no-trigger-bug-review}/prompt.md` and one grader each under `graders/`, copied from `plan.md:374-426`. Modified `.gitignore` (`plugins/*/evals/results/`) and root `CLAUDE.md` (evals bullet under `## Commands`). `evals/results/` is ignored and untracked.
+- Gotchas: the plan's U3 heading and the roadmap's earlier wording say T1-T5, but the plan defines T1-T6. Exit codes of the eval commands were not captured (`${PIPESTATUS[0]}` is empty in zsh), so the pass rests on the printed scores and ✓ lines. The `plugins:` fallback at `plan.md:445-447` was not needed.
+- Decisions made and why: ran the three eval commands exactly as in `plan.md:430-432`. Accepted the user's word for T1-T4 rather than re-running them, at the user's instruction.
 
 ---
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U2, done
-- Why stopped: U2 closed; waiting for the user's review before the next unit.
+- Written against: U3, done
+- Why stopped: U3 closed, the last unit; waiting for the user's OK to push and open the PR.
 - Mid-edit when stopped: nothing.
-- Open question awaiting an answer: none.
+- Open question awaiting an answer: may I push the branch and open a PR with `Closes #9` (`plan.md:452-453`)?
 - Working agreements: "During execution, stop for my review after each unit." (user's global `CLAUDE.md`, Plans section). "Defer commits and such to roadmap." (user, when asked to propose U1's changes; commits go through `roadmap close`.)
-- Next action: `/roadmap begin U3` (Behaviour tests T1-T5); U1 and U2 are done, so it is the last unit.
+- Next action: none - plan complete
 - Environment: branch `9-add-over-engineering-check-skill-to-workflow-preferences`; dotfiles has an unrelated uncommitted change to `claude/.claude/settings.json`.
