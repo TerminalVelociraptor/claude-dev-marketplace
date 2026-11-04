@@ -2,13 +2,13 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #9_
-_Updated: 2026-11-04 - U1 closed_
+_Updated: 2026-11-04 - U2 closed_
 
 ## State
 | Unit | Name | State | Depends on |
 |---|---|---|---|
 | U1 | Create the skill file | done | - |
-| U2 | Rewrite the always-on rules and update the notes | not started | U1 |
+| U2 | Rewrite the always-on rules and update the notes | done | U1 |
 | U3 | Behaviour tests | not started | U1 |
 
 States: `not started` / `in progress` / `done`
@@ -37,25 +37,15 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 
 ### U2 - Rewrite the always-on rules and update the notes
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 0h 30m
 
-**Executes:** `plan.md:209-299 § U2 — Rewrite the always-on rules and update the notes`
-
-**Acceptance:** `plan.md:301-310 § U2 — Rewrite the always-on rules and update the notes ➔ Done when`
-
-**Decisions:** `plan.md:27-79 § Decisions`
-
-**Dependencies:** `plan.md:92-94 § Dependencies`
-
-**Stop-and-ask:** `plan.md:457-462 § Stop-and-ask triggers`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: no deviations. The over-engineering rule (D12) and narrow-reading rule (D18) are rewritten in dotfiles `CLAUDE.md` and committed (`89bf0f3`, only that file). The D14 bullet and D16 section are in `~/notes/working-with-ai.md`. All five Done-when checks passed.
+- Files: modified `/home/david/dotfiles/claude/.claude/CLAUDE.md` (lines 8 and 23) and `/home/david/notes/working-with-ai.md` (bullet at line 48, section at line 76). Neither is in this repo. `settings.json` in dotfiles stays modified and uncommitted, untouched.
+- Gotchas: the plan's D16 markdown block is `plan.md:252-288`; my first attempt used the wrong range and was redone. `Edit` needs a prior `Read` of each file.
+- Decisions made and why: the dotfiles commit was made during the unit, not by `close`, because the roadmap commit covers only this repo. The notes file is not in git, so it has no commit.
 
 ---
 
@@ -87,10 +77,10 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U1, done
-- Why stopped: U1 closed; waiting for the user's review before the next unit.
+- Written against: U2, done
+- Why stopped: U2 closed; waiting for the user's review before the next unit.
 - Mid-edit when stopped: nothing.
 - Open question awaiting an answer: none.
 - Working agreements: "During execution, stop for my review after each unit." (user's global `CLAUDE.md`, Plans section). "Defer commits and such to roadmap." (user, when asked to propose U1's changes; commits go through `roadmap close`.)
-- Next action: `/roadmap begin U2` (rule edit in dotfiles and notes bullet) or `/roadmap begin U3` (T1-T5 behaviour test results); this close unblocked both, and the plan advises doing U2 after U1.
+- Next action: `/roadmap begin U3` (Behaviour tests T1-T5); U1 and U2 are done, so it is the last unit.
 - Environment: branch `9-add-over-engineering-check-skill-to-workflow-preferences`; dotfiles has an unrelated uncommitted change to `claude/.claude/settings.json`.
