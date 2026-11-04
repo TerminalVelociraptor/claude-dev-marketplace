@@ -21,13 +21,6 @@
       "tags": ["models", "model-selection", "effort", "cost"]
     },
     {
-      "name": "telemetry",
-      "source": "./plugins/telemetry",
-      "description": "Per-turn cost reports (transcripts plus Claude Code's own running total) and a two-line status line: model, effort, git, coloured context use, session cost, 5-hour rate limit, and prompt cache state.",
-      "category": "productivity",
-      "tags": ["cost", "hooks", "tokens", "pricing", "statusline", "rate-limits"]
-    },
-    {
       "name": "roadmap",
       "source": "./plugins/roadmap",
       "description": "Tools to create a roadmap from a Claude plan with multiple work units, resume the work on fresh agents, and track execution.",
