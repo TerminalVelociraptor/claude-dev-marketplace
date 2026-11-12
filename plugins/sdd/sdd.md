@@ -95,8 +95,8 @@ Why a decision was made that someone would ask "why?" about, and what was reject
 **Contains:**
 - **Context:** the question it settles, linked in Open decisions, and the priorities and constraints it relies on, each named and linked (e.g. "relies on: reliability over speed").
   *Why:* shows why this answer fits this project, so you can tell later whether it still holds when a priority or constraint changes.
-- **Evidence** (only if a spike was run): what the spike tried and found.
-  *Why:* this is where a spike's result survives, whatever happens to its code. It shows the decision rests on something tested, not a guess.
+- **Evidence** (only if the decision rests on something checked): what was checked, what it found, and what wasn't tested.
+  *Why:* this is where the result survives, whatever happens to a spike's code. It shows which parts of the decision rest on something checked and which are a guess.
 - **Decision:** the choice, in a sentence or two.
   *Why:* the answer itself, stated once, so other documents can point to it instead of restating it.
 - **Alternatives:** each option not taken, with one line on why not.
