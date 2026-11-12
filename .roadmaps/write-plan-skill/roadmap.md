@@ -2,13 +2,13 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #10_
-_Updated: 2026-11-11 - U1 closed_
+_Updated: 2026-11-11 - U2 closed_
 
 ## State
 | Unit | Name | State | Depends on |
 |---|---|---|---|
 | U1 | Create the write-plan skill and plan template | done | - |
-| U2 | Replace the Plans section in CLAUDE.md with an invoke line | not started | U1 |
+| U2 | Replace the Plans section in CLAUDE.md with an invoke line | done | U1 |
 | U3 | Measure triggering and plan structure in plan mode | not started | U2 |
 
 States: `not started` / `in progress` / `done`
@@ -35,25 +35,15 @@ none.
 
 ### U2 - Replace the Plans section in CLAUDE.md with an invoke line
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 0h 30m
 
-**Executes:** `plan.md:269-286 § U2 — Replace the Plans section in CLAUDE.md with an invoke line`
-
-**Acceptance:** `plan.md:288-292 § U2 — Replace the Plans section in CLAUDE.md with an invoke line ➔ Done when`
-
-**Scope:** `plan.md:28-29 § Not doing ➔ outside-plan-mode line`
-
-**Decisions:** `plan.md:35-37 § Decisions ➔ Agreed`; `plan.md:59-60 § Decisions ➔ Assumed`
-
-**Stop-and-ask:** `plan.md:331-338 § Execution rules`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: The `# Plans (plan mode only)` section of `~/dotfiles/claude/.claude/CLAUDE.md` is replaced by `# Plans` plus one line telling Claude to invoke `workflow-preferences:write-plan` in plan mode; no deviations. Acceptance passed: the `Label units U1` and `Outside plan mode` greps print `0`, the invoke-line grep prints `1`, and nothing was committed in dotfiles.
+- Files: modified only `/home/david/dotfiles/claude/.claude/CLAUDE.md` (-19/+2 lines), left uncommitted. U3 tests against this edited file, so it must stay in place.
+- Gotchas: the section spans lines 26-44, not 26-45 (line 45 is the blank line before `# After finishing work`); the first scripted edit hit an assertion on this and wrote nothing. The dotfiles repo also has unrelated uncommitted changes (`claude/.claude/settings.json`, `zsh/.zshrc`).
+- Decisions made and why: edited with a script that asserts the section's first line, last line and the following heading before writing, so a wrong range cannot delete other rules.
 
 ---
 
@@ -85,10 +75,10 @@ none.
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U1, done
-- Why stopped: U1 closed; U2 not begun
+- Written against: U2, done
+- Why stopped: U2 closed; U3 not begun
 - Mid-edit when stopped: none
 - Open question awaiting an answer: none
 - Working agreements: none recorded
-- Next action: `/roadmap begin U2` (Replace the Plans section in CLAUDE.md with an invoke line)
-- Environment: branch `10-write-plan-skill`; `plugins/sdd/sdd.md` has an uncommitted change unrelated to this work
+- Next action: `/roadmap begin U3` (Measure triggering and plan structure in plan mode)
+- Environment: branch `10-write-plan-skill`; `plugins/sdd/sdd.md` has an uncommitted change unrelated to this work; dotfiles has the U2 edit to `claude/.claude/CLAUDE.md` uncommitted, by plan
