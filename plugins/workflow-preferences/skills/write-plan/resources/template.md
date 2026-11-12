@@ -12,8 +12,10 @@
 ## Decisions
 ### Agreed
 - <Decision confirmed by the user> (U1, U2)
+
 ### Undecided
 - <Question still open for the user> (U3)
+
 ### Assumed
 - <Choice made without the user's confirmation> (U1)
 
@@ -29,11 +31,17 @@
 <U2 depends on U1. | None: units are independent.>
 
 ## U1 — <short name>
+
 **Deliverables:** <what exists when the unit is done>
+
 **Files:** create `<path>`; modify `<path>`; must not touch `<path>`
+
 **Contract:** <inputs, outputs, errors, invariants>
+
 **Content:** <full drafted text, or contract + test table + exact rules>
+
 **Gotchas:** <gotchas for this unit only> (verified | unverified)
+
 **Done when:** `<command>` → <expected output>; fails if <condition>
 
 ## Verification

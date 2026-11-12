@@ -2,20 +2,20 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #10_
-_Updated: 2026-11-11 - U2 closed_
+_Updated: 2026-11-11 - U3 closed; plan complete_
 
 ## State
 | Unit | Name | State | Depends on |
 |---|---|---|---|
 | U1 | Create the write-plan skill and plan template | done | - |
 | U2 | Replace the Plans section in CLAUDE.md with an invoke line | done | U1 |
-| U3 | Measure triggering and plan structure in plan mode | not started | U2 |
+| U3 | Measure triggering and plan structure in plan mode | done | U2 |
 
 States: `not started` / `in progress` / `done`
 
 ## Amendments
 _Append-only. Where execution diverged or will diverge from the frozen plan. `none.` until one occurs._
-none.
+- U3: `resources/template.md` gains a blank line before `### Undecided` and `### Assumed` and between unit field lines, after the interactive run showed subheadings running into the list above; user approved ("Apply both"). Overrides `plan.md:185-235 § U1 — Create the write-plan skill and plan template ➔ template.md Content`.
 
 ---
 
@@ -49,36 +49,24 @@ none.
 
 ### U3 - Measure triggering and plan structure in plan mode
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 0h 30m
 
-**Executes:** `plan.md:294-320 § U3 — Measure triggering and plan structure in plan mode`
-
-**Acceptance:** `plan.md:322-324 § U3 — Measure triggering and plan structure in plan mode ➔ Done when`; `plan.md:326-329 § Verification`
-
-**Scope:** `plan.md:26 § Not doing ➔ UserPromptSubmit hook`; `plan.md:30 § Not doing ➔ committed eval`
-
-**Decisions:** `plan.md:36-37 § Decisions ➔ Agreed`; `plan.md:50 § Decisions ➔ Undecided`; `plan.md:57-58 § Decisions ➔ Assumed`; `plan.md:61 § Decisions ➔ Assumed`
-
-**Gotchas:** `plan.md:73-79 § Gotchas`
-
-**Stop-and-ask:** `plan.md:331-338 § Execution rules`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: Acceptance passed. Fresh `claude -p --permission-mode plan` runs invoked `write-plan` in 5/5 and produced the full structure (U1 heading, Deliverables, Files, Done when, Dependencies) in 5/5; the user's interactive run showed write-plan, then over-engineering-check, then the plan-approval view. One deviation: the template's spacing was changed (see Amendments); one confirming run on the changed template also triggered and kept the structure.
+- Files: modified `plugins/workflow-preferences/skills/write-plan/resources/template.md` (+8 blank lines). Test logs, the classifier `classify.py` and a negative control are in the session scratchpad only; six test plans `plan-this-change-add-*.md` were left in `~/.claude/plans/`.
+- Gotchas: in `-p`, ExitPlanMode is absent from the session's tool list (confirmed in the run logs), so agents end by asking for approval in text; only an interactive run exercises the exit step. `-p` plan mode does write a plan file to `~/.claude/plans/`. Agents copy the template's blank-line layout exactly, so missing blank lines show up as subheadings running into lists in the approval view. In zsh, `${PIPESTATUS[0]}` is empty; use `$pipestatus`.
+- Decisions made and why: matched each plan file to its run by the run's own Write call rather than by timestamp, because the five runs were parallel. Ran a negative control so the classifier was shown able to fail. Skipped the optional Sonnet run (plan default) and a second interactive run (user: "I'm happy not to do another interactive test").
 
 ---
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U2, done
-- Why stopped: U2 closed; U3 not begun
+- Written against: U3, done; all units done
+- Why stopped: plan complete
 - Mid-edit when stopped: none
 - Open question awaiting an answer: none
 - Working agreements: none recorded
-- Next action: `/roadmap begin U3` (Measure triggering and plan structure in plan mode)
+- Next action: none - plan complete
 - Environment: branch `10-write-plan-skill`; `plugins/sdd/sdd.md` has an uncommitted change unrelated to this work; dotfiles has the U2 edit to `claude/.claude/CLAUDE.md` uncommitted, by plan
