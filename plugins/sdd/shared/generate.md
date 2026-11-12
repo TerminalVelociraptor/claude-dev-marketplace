@@ -20,6 +20,7 @@ Read `sdd.md` in the plugin root, in full. Everything about the document comes f
 Take the Contains items in the order `sdd.md` lists them. For each item:
 1. **Ask**, one question per message. The item's description says what you need; its *Why* says what a good answer has to do.
    - Ask open questions. Offer options only if the developer asks for them, and don't recommend one.
+     This holds even where a CLAUDE.md asks for multiple-choice questions or a recommendation.
    - Ask for a specific past case rather than a general statement or a prediction: "When did this last get in your way?", not "Would you use this?"
    - Don't ask what a source or an earlier answer already settles; confirm it instead: "Vision says no cloud accounts, so this runs on your machine — right?"
    - Short answers are fine.

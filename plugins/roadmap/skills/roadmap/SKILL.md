@@ -1,9 +1,10 @@
 ---
 name: roadmap
 description: >
-  Track execution of an approved plan for one unit of work. Maintains a checkpoint overlay that
+  Tracks execution of an approved plan for one unit of work. Maintains a checkpoint overlay that
   points into a frozen plan and commits at each stage boundary, so progress can be reported or
   handed off mid-ticket. Invoke with /roadmap and a verb.
+argument-hint: "[start [plan-path] | resume | begin <unit> | close <unit> | checkpoint]"
 disable-model-invocation: true
 ---
 
@@ -13,11 +14,11 @@ Input is a finished plan for **one unit of work** - normally what plan mode just
 `.roadmaps/<slug>/`, holding a frozen copy of that plan and a `roadmap.md` tracking execution
 against it.
 
-**The roadmap holds execution state only. It never restates a plan context.** Scope, contracts,
-terminology, invariants, rationale and acceptance stay in one plan and are refrenced by a pointer.
+**The roadmap holds execution state only. It never restates plan content.** Scope, contracts,
+terminology, invariants, rationale and acceptance stay in one plan and are referenced by a pointer.
 There is no transcription step, so nothing can be lost in one.
 
-The user drives every transition. An agent may do most of a unit's work with little promtping; this
+The user drives every transition. An agent may do most of a unit's work with little prompting; this
 skill never decides *whether* to.
 
 ## What this is not
@@ -46,7 +47,7 @@ stops.
 
 ## The files
 
-`.roadmaps/<slug>/` at the **project root** - the directory the session was inoked in, not the git
+`.roadmaps/<slug>/` at the **project root** - the directory the session was invoked in, not the git
 top-level, not the nearest package marker. `<slug>` is 2-4 kebab-case words from the plan's title.
 
 ```
@@ -66,12 +67,14 @@ A pointer is `plan.md:<start>-<end> § <heading>`, optionally narrowed with `➔
 
 ```
 plan.md:101-110 § Target contracts ➔ Cache
-plan.md:203:218 § Verification
+plan.md:203-218 § Verification
 ```
 
 Carry both the lines and the heading. Point at the tightest range that answers the question - two
-lines where two lines will do, not the enclosing section. A range must not start of end mid-item:
+lines where two lines will do, not the enclosing section. A range must not start or end mid-item:
 begin it at the first line of the list entry, paragraph or code block it names.
+
+Never guess at a rotted pointer.
 
 ## Naming units in reports
 
@@ -88,7 +91,7 @@ and the `### U<n> - <name>` headings are unchanged.
 
 `/roadmap start [plan-path]`
 
-1. **Resolve the plan.** With a path argument, use it. Wihtout one, use the plan-mode path already
+1. **Resolve the plan.** With a path argument, use it. Without one, use the plan-mode path already
    known from this session. If neither is available, prompt the user for a path argument.
 2. **Readiness check.** The plan must name discrete units of work, must have a dependency statement,
    and must state something usable as verification. If any are missing, stop and say which. Nothing 
@@ -108,7 +111,7 @@ and the `### U<n> - <name>` headings are unchanged.
 
 `/roadmap resume`
 
-Read `roadmap.md`, then only the plan lines the current unit poitns at - not the whole plan. Report
+Read `roadmap.md`, then only the plan lines the current unit points at - not the whole plan. Report
 the current unit and its state, anything the handoff records as mid-edit, the working agreements, and
 the next action, naming units as in "Naming units in reports". Ask before doing anything else.
 
@@ -160,10 +163,10 @@ walking away mid-unit.
    reports".
 7. **Commit** (see Committing).
 
-When the last unit closes the work is finishedL say so, write `Next action: none - plan complete` in
+When the last unit closes the work is finished: say so, write `Next action: none - plan complete` in
 the handoff, and leave the directory in place.
 
-## Key Findings
+## Key findings
 
 | Category | Holds |
 |---|---|
@@ -177,7 +180,7 @@ ticket. A pointer like "build per `plan.md:152-157`" is fine; it resolves in one
 
 Keep a finding if either limb holds: a later unit or a fresh session would act differently for
 knowing it, or deleting it would lose the answer to "why was this done this way". A category with
-geniunely nothing to record is written `none.` - never blank, never padded with invented detail.
+genuinely nothing to record is written `none.` - never blank, never padded with invented detail.
 
 **Findings are not a work log.** Do not narrate what was done in order.
 
@@ -206,28 +209,17 @@ in their words, with what prompted it. Never one inferred from observed behavior
 Only `start` and `close` commit.
 
 1. Run `git status --porcelain`.
-2. Stage `.roadmaps/<sluig>/` plus the paths that are project content - source, tests, config, project
+2. Stage `.roadmaps/<slug>/` plus the paths that are project content - source, tests, config, project
    docs.
 3. **Anything not clearly project content: stop, list it by path, and ask.** Sandboxes and other
    tooling leave artifacts in the working directory that are not yours to commit.
-4. Never `git add -A` or `git add.`. Non-regulare files are never project content, and `git add`
+4. Never `git add -A` or `git add .`. Non-regular files are never project content, and `git add`
    refuses them outright, so a blanket add hard-fails rather than failing quietly.
 5. Message is `[<ticket>] <message>`, using the work item from the header; with no ticket, the message
-   alone. do not go looking for a house style in the commit history.
+   alone. Do not go looking for a house style in the commit history.
 6. **Never push. Never rebase.**
 
 Where the project has no version control, say so once and skip every commit step.
-
-## Must not happen
-- Never copy plan content into `roadmap.md`. Pointers only.
-- Never edit `.roadmaps/<slug>/plan.md` after `start`.
-- Never guess at a rotted pointer.
-- Never infer a verb, or act on "checkpoint" said in conversation.
-- Never move a unit to `in progress` outside `/roadmap begin`.
-- Never mark a unit `done` before its acceptance has been checked and passed in its current state.
-- Never write findings from memory of what was planned.
-- Never invent a working agreement.
-- Never `git add -A`, never push, never rebase.
 
 ## Authority
 
@@ -235,7 +227,7 @@ This skill is **not** the final authority over live repo conventions, `CLAUDE.md
 including a user-level `CLAUDE.md` outside the repo, which counts the same as one inside it. Where
 one of those specifies something this skill also specifies - a commit format, an approval step -
 follow it and carry on. That is deference, not a conflict, and needs no approval. Stop and ask only
-where following both would undo each other or create a dead lock.
+where following both would undo each other or create a deadlock.
 
 ## Template
 

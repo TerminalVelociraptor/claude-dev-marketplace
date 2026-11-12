@@ -1,13 +1,12 @@
 ---
 name: propose-changes
 description: >-
-  Format for proposing changes for the user's review: each change labelled C1, C2…, with
-  What:/Why: lines and the change shown as a diff block. Use whenever the user asks to
-  "propose", "suggest" or "draft" changes, asks "what would you change", or wants to review an
-  edit before it is made; whenever presenting changes to code, docs, config or prompts for
-  approval before applying them; when proposing a new format, output, structure or process, or
-  asked which one to use; and
-  when suggesting fixes in a review. Not for direct requests to make a change ("fix the typo").
+  Formats proposed changes for review: each change labelled C1, C2…, with What:/Why: lines and
+  a diff block. Use when the user asks to "propose", "suggest" or "draft" changes, asks "what
+  would you change", or asks to see an edit before it is made; before asking approval for an
+  edit not yet made; when proposing a new format, output, structure or process, or asked which
+  to use; and when suggesting fixes in a review. Not for direct requests to make a change
+  ("fix the typo").
 ---
 
 Say `propose-changes loaded`.

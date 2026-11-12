@@ -19,7 +19,7 @@ conversation context. It sees only the plan and the files the plan names, and ne
 ## Before writing
 
 - Investigate cheaply first (existing conventions, git state) so the plan fits what is actually there.
-  If scouting the codebase would help, propose it to the user (haiku is usually enough).
+  If scouting the codebase would help, propose it to the user (a small, fast model is usually enough).
 - Point at existing code to reuse by path and a stable anchor (a function, class or heading name, or a
   short quote), not by line number: an earlier unit may change the file before a later unit reads it.
   Where the code is not in the working tree (deleted, only in git history, in another repo), paste it

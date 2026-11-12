@@ -30,10 +30,10 @@ _Append-only. Where execution diverged or will diverge from the frozen plan. `no
 **Acceptance:** `plan.md:<lines> § <heading>`
 
 _Add further pointer lines only where this unit needs a plan section kept elsewhere, e.g._
-_`**Contracts:** plan.md:101-110 § Target contracts->Cache`. Pointer lines only - never content._
+_`**Contracts:** plan.md:101-110 § Target contracts ➔ Cache`. Pointer lines only - never content._
 _Delete this italic note and the pointer lines as each unit closes._
 
-**Key findings:** _(all four required before this unit may be close)_
+**Key findings:** _(all four required before this unit may be closed)_
 - Outcome:
 - Files:
 - Gotchas:
