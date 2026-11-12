@@ -2,12 +2,12 @@
 
 _Plan: `plan.md`_ - frozen. Read it for scope, contracts, terminology and acceptance.
 _Ticket: #10_
-_Updated: 2026-11-11 - roadmap started_
+_Updated: 2026-11-11 - U1 closed_
 
 ## State
 | Unit | Name | State | Depends on |
 |---|---|---|---|
-| U1 | Create the write-plan skill and plan template | not started | - |
+| U1 | Create the write-plan skill and plan template | done | - |
 | U2 | Replace the Plans section in CLAUDE.md with an invoke line | not started | U1 |
 | U3 | Measure triggering and plan structure in plan mode | not started | U2 |
 
@@ -21,27 +21,15 @@ none.
 
 ### U1 - Create the write-plan skill and plan template
 
-**Status:** not started
+**Status:** done
 
-**Effort:** -
+**Effort:** 0h 15m
 
-**Executes:** `plan.md:85-241 § U1 — Create the write-plan skill and plan template`
-
-**Acceptance:** `plan.md:243-267 § U1 — Create the write-plan skill and plan template ➔ Done when`
-
-**Scope:** `plan.md:21-30 § Not doing`
-
-**Decisions:** `plan.md:35-46 § Decisions ➔ Agreed`; `plan.md:53-56 § Decisions ➔ Assumed`
-
-**Conventions:** `plan.md:63-69 § Conventions`
-
-**Stop-and-ask:** `plan.md:331-338 § Execution rules`
-
-**Key findings:** _(all four required before this unit may be close)_
-- Outcome:
-- Files:
-- Gotchas:
-- Decisions made and why:
+**Key findings:**
+- Outcome: Skill and template created exactly per `plan.md:85-241`; no deviations. Acceptance passed: both files byte-match the plan's blocks, `claude plugin validate` exit 0, description length 387 (< 1024), all 17 current Plans rules map to a row of the coverage table.
+- Files: added `plugins/workflow-preferences/skills/write-plan/SKILL.md` and `resources/template.md`. U2 must read `SKILL.md` (it is the invoke target) and the global CLAUDE.md `# Plans (plan mode only)` section it replaces.
+- Gotchas: `claude plugin validate` also prints a directory-profile error (`LICENSE_MISSING`) and an icon warning for the plugin; they are pre-existing, outside U1's files, and do not affect the exit code. Rule coverage was checked by reading, not by script.
+- Decisions made and why: Kept Structure and Unit fields inside `SKILL.md` rather than a reference file, because every rule applies to every plan and a separate file adds a skippable read. Accepted that the section order is stated in both `SKILL.md` and the template.
 
 ---
 
@@ -97,10 +85,10 @@ none.
 
 ## Handoff
 _Replaced each session, never appended to._
-- Written against: U1, not started
-- Why stopped: roadmap just started; no unit begun
+- Written against: U1, done
+- Why stopped: U1 closed; U2 not begun
 - Mid-edit when stopped: none
 - Open question awaiting an answer: none
 - Working agreements: none recorded
-- Next action: `/roadmap begin U1`
+- Next action: `/roadmap begin U2` (Replace the Plans section in CLAUDE.md with an invoke line)
 - Environment: branch `10-write-plan-skill`; `plugins/sdd/sdd.md` has an uncommitted change unrelated to this work
