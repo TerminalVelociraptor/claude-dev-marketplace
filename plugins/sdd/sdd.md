@@ -139,8 +139,8 @@ Wherever you put it (a file, a GitHub issue). About half a page.
 **Contains:**
 - **Outcome:** one line: what the user can do afterwards that they couldn't before.
   *Why:* keeps slices vertical. "Build the database" has no user outcome, so it isn't a slice. An outcome that needs "and" is two slices.
-- **Why this slice:** the Vision goal it advances, or the open question it settles.
-  *Why:* a slice with neither is scope creep. Slices that settle open questions early find what could sink the project while it's still cheap to change.
+- **Why this slice:** the Vision goal it advances, the open question it settles, or, for a walking skeleton (the first slice, running the MVP end to end as thinly as possible), the MVP.
+  *Why:* a slice with none of these is scope creep. Slices that settle open questions early find what could sink the project while it's still cheap to change. A walking skeleton advances no single goal; it builds the path through every component that later slices thicken, so the seams between them are tested first.
 - **Acceptance scenarios:** each a situation and what the user sees.
   *Why:* defines "working" across components. They become the tasks' checks. What the user sees is decided here, not left to whoever builds it.
 - **Out of scope:** nearby behaviour this slice deliberately doesn't handle (edge cases, options, variations).
@@ -148,7 +148,7 @@ Wherever you put it (a file, a GitHub issue). About half a page.
 - **Touches:** the components and what changes in each, with links to the contracts it needs in the component specs.
   *Why:* shows the slice is vertical, which contracts it relies on, and how it splits into tasks.
 
-**Links back to:** the Vision goal or open question it serves; the contracts it touches.
+**Links back to:** the Vision goal, open question or (for a walking skeleton) MVP it serves; the contracts it touches.
 
 ---
 
