@@ -26,6 +26,7 @@ Take the Contains items in the order `sdd.md` lists them. For each item:
    - Short answers are fine.
    - For an item marked optional or "only if", first ask whether it applies. If not, leave it out.
 2. **Don't guess.** If the developer can't settle something, don't fill it in. Keep the question, and where it came from, for Open decisions at the end, and draft the item with what is settled, linking the unsettled part to Open decisions.
+   If the developer settles something another document must state (a contract field, a data rule, behaviour the user sees), keep it, with the section it belongs in, for spec changes at the end.
 3. **Draft** the item following `sdd.md`'s rules, sized so the whole document fits the entry's size, and show it for review. Do not start the next item's questions in the same message.
 4. **Review.** If the Challenge menu setting is `false`, ask whether to keep or revise the draft. After a revision, show it and ask again. Otherwise, offer a numbered challenge menu:
    - 3–5 methods from `shared/challenge-methods.md` in the plugin root, chosen for the mistake this item's *Why* names;
@@ -37,7 +38,8 @@ Take the Contains items in the order `sdd.md` lists them. For each item:
 
 ## 4. Deliver
 - Show the whole document. If it is well over the entry's size, name the item that looks like it's doing another document's job, and ask. Don't cut anything on your own.
-- Write it to its location only after the developer confirms, or return it if the entry names no path. Write nothing else but the Open decisions entries the developer approves: knock-on changes to other documents are the update skill's job.
+- Write it to its location only after the developer confirms, or return it if the entry names no path. Write nothing else but the spec changes and Open decisions entries the developer approves.
+- **Spec changes.** For each settled item kept for another document, draft the edit to that section, following `sdd.md`'s rules for that document. Show the edits, and apply the ones the developer approves.
 - **Open decisions.** For each question you couldn't settle, draft its entry following the Open decisions entry in `sdd.md`, linking to the item it came from, and ask what document, if any, it must be settled before. Show the entries, then add the ones the developer approves to Open decisions.
 - End with:
   - **Open questions:** each question you couldn't settle, and whether it was added to Open decisions.
